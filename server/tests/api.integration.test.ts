@@ -1,6 +1,6 @@
 // @vitest-environment node
 import request from "supertest";
-import { beforeAll, afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Express } from "express";
 
 const hasTestDatabase = Boolean(process.env.TEST_DATABASE_URL);
@@ -15,15 +15,40 @@ async function bootstrapCsrf(agent: ReturnType<typeof request.agent>) {
   return response.body.csrfToken as string;
 }
 
-async function registerUser(agent: ReturnType<typeof request.agent>, user: { email: string; password: string; fullName: string }) {
+async function registerPendingUser(
+  agent: ReturnType<typeof request.agent>,
+  user: { email: string; password: string; fullName: string },
+) {
   const csrfToken = await bootstrapCsrf(agent);
-  const response = await agent
-    .post("/api/auth/register")
-    .set("x-csrf-token", csrfToken)
-    .send(user);
+  const response = await agent.post("/api/auth/register").set("x-csrf-token", csrfToken).send(user);
 
-  expect(response.status).toBe(201);
-  return response.body.user as { id: string; email: string; fullName: string };
+  expect(response.status).toBe(202);
+  expect(response.body.verificationRequired).toBe(true);
+  expect(response.body.verificationUrl).toBeTruthy();
+  return response.body as { email: string; verificationUrl: string };
+}
+
+async function verifyUser(agent: ReturnType<typeof request.agent>, verificationUrl: string) {
+  const parsedUrl = new URL(verificationUrl);
+  const response = await agent.get(`${parsedUrl.pathname}${parsedUrl.search}`);
+  expect(response.status).toBe(302);
+  expect(response.headers.location).toContain("/?verified=1");
+  return response;
+}
+
+async function registerAndVerifyUser(
+  agent: ReturnType<typeof request.agent>,
+  user: { email: string; password: string; fullName: string },
+) {
+  const registration = await registerPendingUser(agent, user);
+  await verifyUser(agent, registration.verificationUrl);
+  const sessionResponse = await agent.get("/api/auth/me");
+  expect(sessionResponse.status).toBe(200);
+  expect(sessionResponse.body.user).toMatchObject({
+    email: user.email,
+    fullName: user.fullName,
+  });
+  return sessionResponse.body.user as { id: string; email: string; fullName: string };
 }
 
 describeIfDatabase("RumahQu API", () => {
@@ -52,13 +77,18 @@ describeIfDatabase("RumahQu API", () => {
     await closePool();
   });
 
-  it("creates a personal group during registration", async () => {
+  it("creates a personal group after email verification", async () => {
     const agent = request.agent(app);
-    await registerUser(agent, {
+    const registration = await registerPendingUser(agent, {
       email: "alice@example.com",
       password: "hunter22",
       fullName: "Alice Rumah",
     });
+
+    const groupsBeforeVerification = await agent.get("/api/groups");
+    expect(groupsBeforeVerification.status).toBe(401);
+
+    await verifyUser(agent, registration.verificationUrl);
 
     const groupsResponse = await agent.get("/api/groups");
     expect(groupsResponse.status).toBe(200);
@@ -69,28 +99,125 @@ describeIfDatabase("RumahQu API", () => {
     });
   });
 
-  it("rejects duplicate email registration", async () => {
+  it("serves email preview pages in non-production environments", async () => {
+    const response = await request(app).get("/api/dev/email-preview");
+
+    expect(response.status).toBe(200);
+    expect(response.text).toContain("Preview template email RumahQu");
+
+    const verificationPreview = await request(app).get("/api/dev/email-preview?template=verification");
+    expect(verificationPreview.status).toBe(200);
+    expect(verificationPreview.headers["x-email-preview-subject"]).toBe("Verifikasi email akun RumahQu");
+    expect(verificationPreview.text).toContain("Selamat datang di RumahQu");
+
+    const resetPreview = await request(app).get("/api/dev/email-preview?template=reset-password");
+    expect(resetPreview.status).toBe(200);
+    expect(resetPreview.headers["x-email-preview-subject"]).toBe("Reset password akun RumahQu");
+    expect(resetPreview.text).toContain("Buat password baru");
+  });
+
+  it("rejects login before the email address is verified", async () => {
+    const agent = request.agent(app);
+    await registerPendingUser(agent, {
+      email: "pending@example.com",
+      password: "hunter22",
+      fullName: "Pending User",
+    });
+
+    const csrfToken = await bootstrapCsrf(agent);
+    const response = await agent.post("/api/auth/login").set("x-csrf-token", csrfToken).send({
+      email: "pending@example.com",
+      password: "hunter22",
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.body.error.code).toBe("EMAIL_NOT_VERIFIED");
+  });
+
+  it("rejects duplicate email registration after the email is verified", async () => {
     const firstAgent = request.agent(app);
     const secondAgent = request.agent(app);
 
-    await registerUser(firstAgent, {
+    await registerAndVerifyUser(firstAgent, {
       email: "dup@example.com",
       password: "hunter22",
       fullName: "First User",
     });
 
     const csrfToken = await bootstrapCsrf(secondAgent);
-    const response = await secondAgent
-      .post("/api/auth/register")
-      .set("x-csrf-token", csrfToken)
-      .send({
-        email: "dup@example.com",
-        password: "hunter22",
-        fullName: "Second User",
-      });
+    const response = await secondAgent.post("/api/auth/register").set("x-csrf-token", csrfToken).send({
+      email: "dup@example.com",
+      password: "hunter22",
+      fullName: "Second User",
+    });
 
     expect(response.status).toBe(409);
     expect(response.body.error.code).toBe("EMAIL_TAKEN");
+  });
+
+  it("returns a generic forgot password response for unknown emails", async () => {
+    const agent = request.agent(app);
+    const csrfToken = await bootstrapCsrf(agent);
+    const response = await agent.post("/api/auth/forgot-password").set("x-csrf-token", csrfToken).send({
+      email: "unknown@example.com",
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.message).toContain("link reset password");
+    expect(response.body.resetUrl).toBeUndefined();
+  });
+
+  it("resets the password via email token and invalidates existing sessions", async () => {
+    const agent = request.agent(app);
+    await registerAndVerifyUser(agent, {
+      email: "reset@example.com",
+      password: "hunter22",
+      fullName: "Reset User",
+    });
+
+    const forgotCsrf = await bootstrapCsrf(agent);
+    const forgotResponse = await agent.post("/api/auth/forgot-password").set("x-csrf-token", forgotCsrf).send({
+      email: "reset@example.com",
+    });
+
+    expect(forgotResponse.status).toBe(200);
+    expect(forgotResponse.body.resetUrl).toBeTruthy();
+
+    const resetToken = new URL(forgotResponse.body.resetUrl).searchParams.get("token");
+    expect(resetToken).toBeTruthy();
+
+    const resetCsrf = await bootstrapCsrf(agent);
+    const resetResponse = await agent.post("/api/auth/reset-password").set("x-csrf-token", resetCsrf).send({
+      token: resetToken,
+      password: "newpass22",
+    });
+
+    expect(resetResponse.status).toBe(200);
+    expect(resetResponse.body.message).toContain("Password berhasil");
+
+    const sessionResponse = await agent.get("/api/auth/me");
+    expect(sessionResponse.status).toBe(200);
+    expect(sessionResponse.body.user).toBeNull();
+
+    const oldLoginCsrf = await bootstrapCsrf(agent);
+    const oldLoginResponse = await agent.post("/api/auth/login").set("x-csrf-token", oldLoginCsrf).send({
+      email: "reset@example.com",
+      password: "hunter22",
+    });
+
+    expect(oldLoginResponse.status).toBe(401);
+
+    const newLoginCsrf = await bootstrapCsrf(agent);
+    const newLoginResponse = await agent.post("/api/auth/login").set("x-csrf-token", newLoginCsrf).send({
+      email: "reset@example.com",
+      password: "newpass22",
+    });
+
+    expect(newLoginResponse.status).toBe(200);
+    expect(newLoginResponse.body.user).toMatchObject({
+      email: "reset@example.com",
+      fullName: "Reset User",
+    });
   });
 
   it("supports invite acceptance and shared inventory access", async () => {
@@ -98,17 +225,17 @@ describeIfDatabase("RumahQu API", () => {
     const bob = request.agent(app);
     const stranger = request.agent(app);
 
-    await registerUser(alice, {
+    await registerAndVerifyUser(alice, {
       email: "alice@example.com",
       password: "hunter22",
       fullName: "Alice Rumah",
     });
-    await registerUser(bob, {
+    await registerAndVerifyUser(bob, {
       email: "bob@example.com",
       password: "hunter22",
       fullName: "Bob Rumah",
     });
-    await registerUser(stranger, {
+    await registerAndVerifyUser(stranger, {
       email: "charlie@example.com",
       password: "hunter22",
       fullName: "Charlie Rumah",
@@ -137,17 +264,14 @@ describeIfDatabase("RumahQu API", () => {
     expect(acceptResponse.status).toBe(200);
 
     const aliceInventoryCsrf = await bootstrapCsrf(alice);
-    const createItemResponse = await alice
-      .post("/api/inventory")
-      .set("x-csrf-token", aliceInventoryCsrf)
-      .send({
-        groupId: aliceGroupId,
-        name: "Beras",
-        category: "Makanan",
-        quantity: 1,
-        unit: "kg",
-        expirationDate: "2026-12-31",
-      });
+    const createItemResponse = await alice.post("/api/inventory").set("x-csrf-token", aliceInventoryCsrf).send({
+      groupId: aliceGroupId,
+      name: "Beras",
+      category: "Makanan",
+      quantity: 1,
+      unit: "kg",
+      expirationDate: "2026-12-31",
+    });
 
     expect(createItemResponse.status).toBe(201);
 
@@ -163,12 +287,12 @@ describeIfDatabase("RumahQu API", () => {
     const alice = request.agent(app);
     const bob = request.agent(app);
 
-    await registerUser(alice, {
+    await registerAndVerifyUser(alice, {
       email: "alice-restock@example.com",
       password: "hunter22",
       fullName: "Alice Restock",
     });
-    await registerUser(bob, {
+    await registerAndVerifyUser(bob, {
       email: "bob-restock@example.com",
       password: "hunter22",
       fullName: "Bob Restock",
@@ -195,17 +319,14 @@ describeIfDatabase("RumahQu API", () => {
     expect(acceptResponse.status).toBe(200);
 
     const aliceCsrf = await bootstrapCsrf(alice);
-    const createResponse = await alice
-      .post("/api/shopping-list")
-      .set("x-csrf-token", aliceCsrf)
-      .send({
-        groupId,
-        name: "Minyak goreng",
-        category: "Bumbu Dapur",
-        quantity: 2,
-        unit: "liter",
-        notes: "Beli yang kemasan refill",
-      });
+    const createResponse = await alice.post("/api/shopping-list").set("x-csrf-token", aliceCsrf).send({
+      groupId,
+      name: "Minyak goreng",
+      category: "Bumbu Dapur",
+      quantity: 2,
+      unit: "liter",
+      notes: "Beli yang kemasan refill",
+    });
 
     expect(createResponse.status).toBe(201);
     expect(createResponse.body).toMatchObject({
@@ -244,7 +365,7 @@ describeIfDatabase("RumahQu API", () => {
 
   it("prevents owners from leaving their own group", async () => {
     const agent = request.agent(app);
-    const user = await registerUser(agent, {
+    const user = await registerAndVerifyUser(agent, {
       email: "owner@example.com",
       password: "hunter22",
       fullName: "Owner Rumah",

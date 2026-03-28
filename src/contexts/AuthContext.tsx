@@ -1,14 +1,24 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SessionResponse, SessionUser, UpdateProfileInput } from "@/lib/contracts";
-import { api, getErrorMessage } from "@/lib/api/client";
+import { ApiClientError, api, getErrorMessage } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
+
+type AuthActionResult = {
+  error?: string;
+  code?: string;
+  email?: string;
+  message?: string;
+};
 
 interface AuthContextType {
   user: SessionUser | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error?: string }>;
-  signUp: (email: string, password: string, fullName: string) => Promise<{ error?: string }>;
+  signIn: (email: string, password: string) => Promise<AuthActionResult>;
+  signUp: (email: string, password: string, fullName: string) => Promise<AuthActionResult>;
+  resendVerificationEmail: (email: string) => Promise<AuthActionResult>;
+  requestPasswordReset: (email: string) => Promise<AuthActionResult>;
+  resetPassword: (token: string, password: string) => Promise<AuthActionResult>;
   signOut: () => Promise<void>;
   updateProfile: (updates: UpdateProfileInput) => Promise<{ error?: string }>;
 }
@@ -34,17 +44,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await setSession(session);
       return {};
     } catch (error) {
-      return { error: getErrorMessage(error) };
+      return {
+        error: getErrorMessage(error),
+        code: error instanceof ApiClientError ? error.code : undefined,
+        email: error instanceof ApiClientError && typeof error.details?.email === "string" ? error.details.email : undefined,
+      };
     }
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
     try {
-      const session = await api.register(email, password, fullName);
-      await setSession(session);
-      return {};
+      const response = await api.register(email, password, fullName);
+      return {
+        code: "EMAIL_VERIFICATION_REQUIRED",
+        email: response.email,
+        message: response.message,
+      };
     } catch (error) {
       return { error: getErrorMessage(error) };
+    }
+  };
+
+  const resendVerificationEmail = async (email: string) => {
+    try {
+      const response = await api.resendVerificationEmail(email);
+      return {
+        email: response.email ?? email,
+        message: response.message,
+      };
+    } catch (error) {
+      return { error: getErrorMessage(error) };
+    }
+  };
+
+  const requestPasswordReset = async (email: string) => {
+    try {
+      const response = await api.forgotPassword(email);
+      return {
+        email: response.email ?? email,
+        message: response.message,
+      };
+    } catch (error) {
+      return { error: getErrorMessage(error) };
+    }
+  };
+
+  const resetPassword = async (token: string, password: string) => {
+    try {
+      const response = await api.resetPassword(token, password);
+      return {
+        message: response.message,
+      };
+    } catch (error) {
+      return {
+        error: getErrorMessage(error),
+        code: error instanceof ApiClientError ? error.code : undefined,
+      };
     }
   };
 
@@ -72,6 +127,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading: sessionQuery.isLoading,
         signIn,
         signUp,
+        resendVerificationEmail,
+        requestPasswordReset,
+        resetPassword,
         signOut,
         updateProfile,
       }}

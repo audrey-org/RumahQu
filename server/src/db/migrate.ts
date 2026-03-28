@@ -46,6 +46,8 @@ export async function resetDatabaseForTests() {
   await pool.query(`
     TRUNCATE TABLE
       sessions,
+      email_verification_tokens,
+      password_reset_tokens,
       group_invites,
       group_members,
       shopping_list_items,

@@ -7,13 +7,17 @@ import type {
   GroupsResponse,
   InventoryItem,
   InventoryResponse,
+  PasswordResetEmailResponse,
+  PasswordResetResponse,
   PendingInvite,
+  RegisterResponse,
   SessionResponse,
   ShoppingListItem,
   ShoppingListResponse,
   UpdateShoppingListItemInput,
   UpdateInventoryItemInput,
   UpdateProfileInput,
+  VerificationEmailResponse,
 } from "@/lib/contracts";
 
 function getApiBaseUrl() {
@@ -138,9 +142,27 @@ export const api = {
     return request<SessionResponse>("/api/auth/me");
   },
   register(email: string, password: string, fullName: string) {
-    return request<AuthResponse>("/api/auth/register", {
+    return request<RegisterResponse>("/api/auth/register", {
       method: "POST",
       body: { email, password, fullName },
+    });
+  },
+  resendVerificationEmail(email: string) {
+    return request<VerificationEmailResponse>("/api/auth/resend-verification", {
+      method: "POST",
+      body: { email },
+    });
+  },
+  forgotPassword(email: string) {
+    return request<PasswordResetEmailResponse>("/api/auth/forgot-password", {
+      method: "POST",
+      body: { email },
+    });
+  },
+  resetPassword(token: string, password: string) {
+    return request<PasswordResetResponse>("/api/auth/reset-password", {
+      method: "POST",
+      body: { token, password },
     });
   },
   login(email: string, password: string) {

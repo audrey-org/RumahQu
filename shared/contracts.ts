@@ -20,6 +20,29 @@ export interface AuthResponse {
   csrfToken: string;
 }
 
+export interface RegisterResponse {
+  email: string;
+  verificationRequired: true;
+  message: string;
+  verificationUrl?: string;
+}
+
+export interface VerificationEmailResponse {
+  message: string;
+  email?: string;
+  verificationUrl?: string;
+}
+
+export interface PasswordResetEmailResponse {
+  message: string;
+  email?: string;
+  resetUrl?: string;
+}
+
+export interface PasswordResetResponse {
+  message: string;
+}
+
 export interface GroupSummary {
   id: string;
   name: string;

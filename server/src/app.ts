@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import express, { type NextFunction, type Request, type Response } from "express";
 import cors from "cors";
 import rateLimit from "express-rate-limit";
+import type { PoolClient } from "pg";
 import { z } from "zod";
 import { verify as verifyPassword, hash as hashPassword, Algorithm } from "@node-rs/argon2";
 import type {
@@ -11,14 +12,24 @@ import type {
   GroupMember,
   GroupSummary,
   InventoryItem,
+  PasswordResetEmailResponse,
+  PasswordResetResponse,
   ShoppingListItem,
   PendingInvite,
+  RegisterResponse,
   SessionResponse,
   SessionUser,
+  VerificationEmailResponse,
 } from "../../shared/contracts.js";
 import { env } from "./config.js";
 import { getPool, query, withTransaction } from "./db/pool.js";
 import { AppError } from "./errors.js";
+import {
+  renderEmailPreview,
+  renderEmailPreviewIndex,
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+} from "./email.js";
 import { logError, requestLogger } from "./logger.js";
 import {
   clearAuthCookies,
@@ -27,6 +38,7 @@ import {
   deleteSession,
   getCookieNames,
   getSessionFromToken,
+  hashToken,
   parseCookies,
   setCsrfCookie,
   setSessionCookies,
@@ -49,6 +61,7 @@ type UserRow = {
   avatar_url: string | null;
   created_at: Date;
   password_hash: string;
+  email_verified_at: Date | null;
 };
 
 type GroupRow = {
@@ -111,6 +124,23 @@ type ShoppingListRow = {
   updated_at: Date;
 };
 
+type EmailVerificationTokenRow = {
+  user_id: string;
+  expires_at: Date;
+  id: string;
+  email: string;
+  full_name: string;
+  avatar_url: string | null;
+  created_at: Date;
+  password_hash: string;
+  email_verified_at: Date | null;
+};
+
+type PasswordResetTokenRow = {
+  user_id: string;
+  expires_at: Date;
+};
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const frontendDistDirectory = path.resolve(__dirname, "../../../dist");
 const frontendIndexFile = path.join(frontendDistDirectory, "index.html");
@@ -124,6 +154,19 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   email: z.string().trim().email(),
   password: z.string().min(1).max(255),
+});
+
+const resendVerificationSchema = z.object({
+  email: z.string().trim().email(),
+});
+
+const forgotPasswordSchema = z.object({
+  email: z.string().trim().email(),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().trim().min(1),
+  password: z.string().min(6).max(255),
 });
 
 const updateProfileSchema = z.object({
@@ -186,6 +229,67 @@ const updateShoppingListItemSchema = z
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
+}
+
+function buildPersonalGroupName(fullName: string) {
+  const firstName = fullName.trim().split(/\s+/)[0] || "Keluarga";
+  return `Rumah ${firstName}`;
+}
+
+function buildRequestOrigin(req: Request) {
+  const forwardedProto = req.header("x-forwarded-proto")?.split(",")[0]?.trim();
+  const protocol = forwardedProto || req.protocol;
+  return `${protocol}://${req.get("host")}`;
+}
+
+function buildVerificationUrl(req: Request, token: string) {
+  const url = new URL("/api/auth/verify-email", buildRequestOrigin(req));
+  url.searchParams.set("token", token);
+  return url.toString();
+}
+
+function buildVerificationRedirectUrl(status: "invalid" | "expired") {
+  const url = new URL("/auth", env.primaryAppOrigin);
+  url.searchParams.set("verification", status);
+  return url.toString();
+}
+
+function buildPasswordResetUrl(token: string) {
+  const url = new URL("/auth", env.primaryAppOrigin);
+  url.searchParams.set("mode", "reset-password");
+  url.searchParams.set("token", token);
+  return url.toString();
+}
+
+function buildRegisterResponse(email: string, verificationUrl?: string): RegisterResponse {
+  return {
+    email,
+    verificationRequired: true,
+    message: "Akun berhasil dibuat. Silakan cek email Anda untuk verifikasi.",
+    verificationUrl: env.NODE_ENV === "production" ? undefined : verificationUrl,
+  };
+}
+
+function buildVerificationEmailResponse(email?: string, verificationUrl?: string): VerificationEmailResponse {
+  return {
+    message: "Jika email terdaftar dan belum diverifikasi, link verifikasi baru sudah dikirim.",
+    email,
+    verificationUrl: env.NODE_ENV === "production" ? undefined : verificationUrl,
+  };
+}
+
+function buildPasswordResetEmailResponse(email?: string, resetUrl?: string): PasswordResetEmailResponse {
+  return {
+    message: "Jika email terdaftar, link reset password sudah dikirim.",
+    email,
+    resetUrl: env.NODE_ENV === "production" ? undefined : resetUrl,
+  };
+}
+
+function buildPasswordResetResponse(): PasswordResetResponse {
+  return {
+    message: "Password berhasil diperbarui. Silakan masuk dengan password baru Anda.",
+  };
 }
 
 function toSessionUser(row: UserRow): SessionUser {
@@ -462,6 +566,86 @@ async function buildAuthResponse(user: SessionUser, csrfToken: string): Promise<
   };
 }
 
+async function createEmailVerificationToken(client: PoolClient, userId: string) {
+  const rawToken = createRandomToken(48);
+  const tokenHash = hashToken(rawToken);
+
+  await client.query(
+    `
+      INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
+      VALUES ($1, $2, now() + ($3 || ' hours')::interval)
+      ON CONFLICT (user_id)
+      DO UPDATE SET
+        token_hash = EXCLUDED.token_hash,
+        expires_at = EXCLUDED.expires_at,
+        created_at = now()
+    `,
+    [userId, tokenHash, env.EMAIL_VERIFICATION_TTL_HOURS],
+  );
+
+  return rawToken;
+}
+
+async function createPasswordResetToken(client: PoolClient, userId: string) {
+  const rawToken = createRandomToken(48);
+  const tokenHash = hashToken(rawToken);
+
+  await client.query(
+    `
+      INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+      VALUES ($1, $2, now() + ($3 || ' hours')::interval)
+      ON CONFLICT (user_id)
+      DO UPDATE SET
+        token_hash = EXCLUDED.token_hash,
+        expires_at = EXCLUDED.expires_at,
+        created_at = now()
+    `,
+    [userId, tokenHash, env.PASSWORD_RESET_TTL_HOURS],
+  );
+
+  return rawToken;
+}
+
+async function ensurePersonalGroup(client: PoolClient, user: SessionUser) {
+  const existingGroup = await client.query<{ id: string }>(
+    `
+      SELECT g.id
+      FROM groups g
+      JOIN group_members gm
+        ON gm.group_id = g.id
+       AND gm.user_id = $1
+       AND gm.role = 'owner'
+      WHERE g.created_by = $1
+      LIMIT 1
+    `,
+    [user.id],
+  );
+
+  if (existingGroup.rowCount) {
+    return existingGroup.rows[0].id;
+  }
+
+  const createdGroup = await client.query<{ id: string }>(
+    `
+      INSERT INTO groups (name, created_by)
+      VALUES ($1, $2)
+      RETURNING id
+    `,
+    [buildPersonalGroupName(user.fullName), user.id],
+  );
+
+  await client.query(
+    `
+      INSERT INTO group_members (group_id, user_id, role)
+      VALUES ($1, $2, 'owner')
+      ON CONFLICT (group_id, user_id) DO NOTHING
+    `,
+    [createdGroup.rows[0].id, user.id],
+  );
+
+  return createdGroup.rows[0].id;
+}
+
 async function requireAuth(req: Request) {
   const auth = getAuth(req);
 
@@ -590,6 +774,32 @@ export function createApp() {
     }),
   );
 
+  if (env.NODE_ENV !== "production") {
+    app.get(
+      "/api/dev/email-preview",
+      asyncHandler(async (req, res) => {
+        const template = z
+          .enum(["verification", "reset-password"])
+          .optional()
+          .parse(typeof req.query.template === "string" ? req.query.template : undefined);
+        const fullName =
+          typeof req.query.name === "string" && req.query.name.trim().length > 0
+            ? req.query.name.trim()
+            : "Keluarga RumahQu";
+        const baseUrl = buildRequestOrigin(req);
+
+        if (!template) {
+          res.type("html").send(renderEmailPreviewIndex(baseUrl));
+          return;
+        }
+
+        const preview = renderEmailPreview(template, baseUrl, fullName);
+        res.setHeader("x-email-preview-subject", preview.subject);
+        res.type("html").send(preview.html);
+      }),
+    );
+  }
+
   app.post(
     "/api/auth/register",
     authRateLimiter,
@@ -597,55 +807,233 @@ export function createApp() {
       requireCsrf(req);
       const input = parseBody(registerSchema, req.body);
       const emailNormalized = normalizeEmail(input.email);
+      const trimmedEmail = input.email.trim();
+      const trimmedFullName = input.fullName.trim();
+      const passwordHash = await hashPassword(input.password, {
+        algorithm: Algorithm.Argon2id,
+      });
 
-      const response = await withTransaction(async (client) => {
-        const existing = await client.query<{ id: string }>(
-          "SELECT id FROM users WHERE email_normalized = $1",
+      const registration = await withTransaction(async (client) => {
+        const existing = await client.query<{ id: string; email_verified_at: Date | null }>(
+          "SELECT id, email_verified_at FROM users WHERE email_normalized = $1",
           [emailNormalized],
         );
 
+        let userId: string;
+
         if (existing.rowCount) {
-          throw new AppError(409, "EMAIL_TAKEN", "Email sudah terdaftar");
+          if (existing.rows[0].email_verified_at) {
+            throw new AppError(409, "EMAIL_TAKEN", "Email sudah terdaftar");
+          }
+
+          userId = existing.rows[0].id;
+          await client.query(
+            `
+              UPDATE users
+              SET email = $2,
+                  password_hash = $3,
+                  full_name = $4
+              WHERE id = $1
+            `,
+            [userId, trimmedEmail, passwordHash, trimmedFullName],
+          );
+        } else {
+          const insertedUser = await client.query<{ id: string }>(
+            `
+              INSERT INTO users (email, email_normalized, password_hash, full_name)
+              VALUES ($1, $2, $3, $4)
+              RETURNING id
+            `,
+            [trimmedEmail, emailNormalized, passwordHash, trimmedFullName],
+          );
+          userId = insertedUser.rows[0].id;
         }
 
-        const passwordHash = await hashPassword(input.password, {
-          algorithm: Algorithm.Argon2id,
-        });
-
-        const insertedUser = await client.query<UserRow>(
-          `
-            INSERT INTO users (email, email_normalized, password_hash, full_name)
-            VALUES ($1, $2, $3, $4)
-            RETURNING id, email, full_name, avatar_url, created_at, password_hash
-          `,
-          [input.email.trim(), emailNormalized, passwordHash, input.fullName],
-        );
-        const user = toSessionUser(insertedUser.rows[0]);
-
-        const firstName = input.fullName.trim().split(/\s+/)[0] || "Keluarga";
-        const groupName = `Rumah ${firstName}`;
-        const createdGroup = await client.query<{ id: string }>(
-          `
-            INSERT INTO groups (name, created_by)
-            VALUES ($1, $2)
-            RETURNING id
-          `,
-          [groupName, user.id],
-        );
-        await client.query(
-          `
-            INSERT INTO group_members (group_id, user_id, role)
-            VALUES ($1, $2, 'owner')
-          `,
-          [createdGroup.rows[0].id, user.id],
-        );
-
-        const sessionTokens = await createSession(client, user);
-        setSessionCookies(res, sessionTokens.rawToken, sessionTokens.csrfToken);
-        return buildAuthResponse(user, sessionTokens.csrfToken);
+        const verificationToken = await createEmailVerificationToken(client, userId);
+        return {
+          email: trimmedEmail,
+          fullName: trimmedFullName,
+          verificationToken,
+        };
       });
 
-      res.status(201).json(response);
+      const verificationUrl = buildVerificationUrl(req, registration.verificationToken);
+      await sendVerificationEmail({
+        email: registration.email,
+        fullName: registration.fullName,
+        verificationUrl,
+      });
+
+      res.status(202).json(buildRegisterResponse(registration.email, verificationUrl));
+    }),
+  );
+
+  app.post(
+    "/api/auth/resend-verification",
+    authRateLimiter,
+    asyncHandler(async (req, res) => {
+      requireCsrf(req);
+      const input = parseBody(resendVerificationSchema, req.body);
+      const emailNormalized = normalizeEmail(input.email);
+
+      const verification = await withTransaction(async (client) => {
+        const userResult = await client.query<Pick<UserRow, "id" | "email" | "full_name" | "email_verified_at">>(
+          `
+            SELECT id, email, full_name, email_verified_at
+            FROM users
+            WHERE email_normalized = $1
+          `,
+          [emailNormalized],
+        );
+
+        if (!userResult.rowCount) {
+          return null;
+        }
+
+        const userRow = userResult.rows[0];
+        if (userRow.email_verified_at) {
+          return null;
+        }
+
+        const verificationToken = await createEmailVerificationToken(client, userRow.id);
+        return {
+          email: userRow.email,
+          fullName: userRow.full_name,
+          verificationToken,
+        };
+      });
+
+      if (verification) {
+        const verificationUrl = buildVerificationUrl(req, verification.verificationToken);
+        await sendVerificationEmail({
+          email: verification.email,
+          fullName: verification.fullName,
+          verificationUrl,
+        });
+        res.json(buildVerificationEmailResponse(verification.email, verificationUrl));
+        return;
+      }
+
+      res.json(buildVerificationEmailResponse());
+    }),
+  );
+
+  app.post(
+    "/api/auth/forgot-password",
+    authRateLimiter,
+    asyncHandler(async (req, res) => {
+      requireCsrf(req);
+      const input = parseBody(forgotPasswordSchema, req.body);
+      const emailNormalized = normalizeEmail(input.email);
+
+      const resetRequest = await withTransaction(async (client) => {
+        const userResult = await client.query<Pick<UserRow, "id" | "email" | "full_name">>(
+          `
+            SELECT id, email, full_name
+            FROM users
+            WHERE email_normalized = $1
+          `,
+          [emailNormalized],
+        );
+
+        if (!userResult.rowCount) {
+          return null;
+        }
+
+        const userRow = userResult.rows[0];
+        const resetToken = await createPasswordResetToken(client, userRow.id);
+        return {
+          email: userRow.email,
+          fullName: userRow.full_name,
+          resetToken,
+        };
+      });
+
+      if (resetRequest) {
+        const resetUrl = buildPasswordResetUrl(resetRequest.resetToken);
+        await sendPasswordResetEmail({
+          email: resetRequest.email,
+          fullName: resetRequest.fullName,
+          resetUrl,
+        });
+        res.json(buildPasswordResetEmailResponse(resetRequest.email, resetUrl));
+        return;
+      }
+
+      res.json(buildPasswordResetEmailResponse());
+    }),
+  );
+
+  app.get(
+    "/api/auth/verify-email",
+    asyncHandler(async (req, res) => {
+      const token = typeof req.query.token === "string" ? req.query.token : "";
+
+      if (!token) {
+        res.redirect(buildVerificationRedirectUrl("invalid"));
+        return;
+      }
+
+      const verification = await withTransaction(async (client) => {
+        const tokenResult = await client.query<EmailVerificationTokenRow>(
+          `
+            SELECT
+              evt.user_id,
+              evt.expires_at,
+              u.id,
+              u.email,
+              u.full_name,
+              u.avatar_url,
+              u.created_at,
+              u.password_hash,
+              u.email_verified_at
+            FROM email_verification_tokens evt
+            JOIN users u ON u.id = evt.user_id
+            WHERE evt.token_hash = $1
+          `,
+          [hashToken(token)],
+        );
+
+        if (!tokenResult.rowCount) {
+          return { status: "invalid" as const };
+        }
+
+        const tokenRow = tokenResult.rows[0];
+
+        if (tokenRow.expires_at.getTime() <= Date.now()) {
+          await client.query("DELETE FROM email_verification_tokens WHERE user_id = $1", [tokenRow.user_id]);
+          return { status: "expired" as const };
+        }
+
+        const verifiedUserResult = await client.query<UserRow>(
+          `
+            UPDATE users
+            SET email_verified_at = COALESCE(email_verified_at, now())
+            WHERE id = $1
+            RETURNING id, email, full_name, avatar_url, created_at, password_hash, email_verified_at
+          `,
+          [tokenRow.user_id],
+        );
+
+        await client.query("DELETE FROM email_verification_tokens WHERE user_id = $1", [tokenRow.user_id]);
+
+        const user = toSessionUser(verifiedUserResult.rows[0]);
+        await ensurePersonalGroup(client, user);
+        const sessionTokens = await createSession(client, user);
+        return {
+          status: "verified" as const,
+          user,
+          sessionTokens,
+        };
+      });
+
+      if (verification.status === "invalid" || verification.status === "expired") {
+        res.redirect(buildVerificationRedirectUrl(verification.status));
+        return;
+      }
+
+      setSessionCookies(res, verification.sessionTokens.rawToken, verification.sessionTokens.csrfToken);
+      res.redirect(new URL("/?verified=1", env.primaryAppOrigin).toString());
     }),
   );
 
@@ -660,7 +1048,7 @@ export function createApp() {
       const response = await withTransaction(async (client) => {
         const userResult = await client.query<UserRow>(
           `
-            SELECT id, email, full_name, avatar_url, created_at, password_hash
+            SELECT id, email, full_name, avatar_url, created_at, password_hash, email_verified_at
             FROM users
             WHERE email_normalized = $1
           `,
@@ -678,6 +1066,12 @@ export function createApp() {
           throw new AppError(401, "INVALID_CREDENTIALS", "Email atau password salah");
         }
 
+        if (!userRow.email_verified_at) {
+          throw new AppError(403, "EMAIL_NOT_VERIFIED", "Email belum diverifikasi. Cek inbox Anda untuk melanjutkan.", {
+            email: userRow.email,
+          });
+        }
+
         const user = toSessionUser(userRow);
         const sessionTokens = await createSession(client, user);
         setSessionCookies(res, sessionTokens.rawToken, sessionTokens.csrfToken);
@@ -685,6 +1079,46 @@ export function createApp() {
       });
 
       res.json(response);
+    }),
+  );
+
+  app.post(
+    "/api/auth/reset-password",
+    authRateLimiter,
+    asyncHandler(async (req, res) => {
+      requireCsrf(req);
+      const input = parseBody(resetPasswordSchema, req.body);
+      const passwordHash = await hashPassword(input.password, {
+        algorithm: Algorithm.Argon2id,
+      });
+
+      await withTransaction(async (client) => {
+        const tokenResult = await client.query<PasswordResetTokenRow>(
+          `
+            SELECT user_id, expires_at
+            FROM password_reset_tokens
+            WHERE token_hash = $1
+          `,
+          [hashToken(input.token)],
+        );
+
+        if (!tokenResult.rowCount) {
+          throw new AppError(400, "RESET_TOKEN_INVALID", "Link reset password tidak valid");
+        }
+
+        const tokenRow = tokenResult.rows[0];
+
+        if (tokenRow.expires_at.getTime() <= Date.now()) {
+          await client.query("DELETE FROM password_reset_tokens WHERE user_id = $1", [tokenRow.user_id]);
+          throw new AppError(400, "RESET_TOKEN_EXPIRED", "Link reset password sudah kedaluwarsa");
+        }
+
+        await client.query("UPDATE users SET password_hash = $2 WHERE id = $1", [tokenRow.user_id, passwordHash]);
+        await client.query("DELETE FROM password_reset_tokens WHERE user_id = $1", [tokenRow.user_id]);
+        await client.query("DELETE FROM sessions WHERE user_id = $1", [tokenRow.user_id]);
+      });
+
+      res.json(buildPasswordResetResponse());
     }),
   );
 

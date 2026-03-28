@@ -35,6 +35,21 @@ describe("app routes", () => {
     expect(screen.getByRole("tab", { name: "Daftar" })).toBeInTheDocument();
   });
 
+  it("renders the forgot password form when requested from the auth route", async () => {
+    window.history.pushState({}, "", "/auth?mode=forgot-password");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse({
+        user: null,
+        csrfToken: "csrf-guest",
+      }),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: "Kirim Link Reset Password" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Kembali ke login" })).toBeInTheDocument();
+  });
+
   it("renders the dashboard for an authenticated user", async () => {
     window.history.pushState({}, "", "/");
 

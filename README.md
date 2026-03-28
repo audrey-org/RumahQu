@@ -11,8 +11,8 @@ RumahQu adalah aplikasi manajemen inventaris rumah tangga berbasis React + TypeS
 
 ## Fitur yang tersedia
 
-- Registrasi, login, logout, bootstrap session, dan update profil
-- Personal group otomatis saat user baru mendaftar
+- Registrasi dengan verifikasi email, login, logout, reset password via email, bootstrap session, dan update profil
+- Personal group otomatis dibuat setelah email user terverifikasi
 - Pembuatan grup baru
 - Invite anggota berdasarkan email user yang sudah terdaftar
 - Terima/tolak invite
@@ -91,6 +91,10 @@ Isi minimal value berikut dengan data production Anda:
 - `DATABASE_URL`
 - `SESSION_SECRET`
 - `APP_ORIGIN`
+- `SMTP_HOST`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `SMTP_FROM`
 
 `APP_ORIGIN` harus sama persis dengan domain HTTPS aplikasi Anda, misalnya `https://rumahqu.com`.
 
@@ -177,6 +181,30 @@ npm run test
 - `SESSION_TTL_HOURS`: TTL session dalam jam
 - `AUTH_RATE_LIMIT_WINDOW_MS`: window rate limit auth
 - `AUTH_RATE_LIMIT_MAX`: jumlah request auth maksimum per window
+- `EMAIL_VERIFICATION_TTL_HOURS`: masa berlaku link verifikasi email dalam jam
+- `PASSWORD_RESET_TTL_HOURS`: masa berlaku link reset password dalam jam
+- `SMTP_HOST`: hostname SMTP untuk kirim email verifikasi dan reset password
+- `SMTP_PORT`: port SMTP
+- `SMTP_SECURE`: `true` jika SMTP memakai TLS langsung
+- `SMTP_USER`: username SMTP
+- `SMTP_PASS`: password SMTP
+- `SMTP_FROM`: alamat pengirim email verifikasi dan reset password
+
+Jika `SMTP_HOST` belum diisi saat development, backend tidak akan gagal. Link verifikasi dan reset password akan ditulis ke log server supaya flow tetap bisa dites secara lokal.
+
+## Preview template email
+
+Saat development atau test, Anda bisa membuka preview HTML email langsung dari browser:
+
+- `http://localhost:3001/api/dev/email-preview`
+- `http://localhost:3001/api/dev/email-preview?template=verification`
+- `http://localhost:3001/api/dev/email-preview?template=reset-password`
+
+Opsional, Anda juga bisa mengganti nama sapaan:
+
+```text
+http://localhost:3001/api/dev/email-preview?template=verification&name=Keluarga%20Budi
+```
 
 ## Struktur utama
 
@@ -200,6 +228,10 @@ src/
 ## API utama
 
 - `POST /api/auth/register`
+- `POST /api/auth/resend-verification`
+- `POST /api/auth/forgot-password`
+- `POST /api/auth/reset-password`
+- `GET /api/auth/verify-email?token=...`
 - `POST /api/auth/login`
 - `POST /api/auth/logout`
 - `GET /api/auth/me`
