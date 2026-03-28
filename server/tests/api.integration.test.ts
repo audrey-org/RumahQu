@@ -26,7 +26,7 @@ async function registerUser(agent: ReturnType<typeof request.agent>, user: { ema
   return response.body.user as { id: string; email: string; fullName: string };
 }
 
-describeIfDatabase("PantryTrack API", () => {
+describeIfDatabase("RumahQu API", () => {
   beforeAll(async () => {
     process.env.NODE_ENV = "test";
     process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -57,7 +57,7 @@ describeIfDatabase("PantryTrack API", () => {
     await registerUser(agent, {
       email: "alice@example.com",
       password: "hunter22",
-      fullName: "Alice Pantry",
+      fullName: "Alice Rumah",
     });
 
     const groupsResponse = await agent.get("/api/groups");
@@ -101,17 +101,17 @@ describeIfDatabase("PantryTrack API", () => {
     await registerUser(alice, {
       email: "alice@example.com",
       password: "hunter22",
-      fullName: "Alice Pantry",
+      fullName: "Alice Rumah",
     });
     await registerUser(bob, {
       email: "bob@example.com",
       password: "hunter22",
-      fullName: "Bob Pantry",
+      fullName: "Bob Rumah",
     });
     await registerUser(stranger, {
       email: "charlie@example.com",
       password: "hunter22",
-      fullName: "Charlie Pantry",
+      fullName: "Charlie Rumah",
     });
 
     const groupsResponse = await alice.get("/api/groups");
@@ -164,7 +164,7 @@ describeIfDatabase("PantryTrack API", () => {
     const user = await registerUser(agent, {
       email: "owner@example.com",
       password: "hunter22",
-      fullName: "Owner Pantry",
+      fullName: "Owner Rumah",
     });
 
     const groupsResponse = await agent.get("/api/groups");

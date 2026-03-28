@@ -13,6 +13,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { usePageMeta } from "@/hooks/usePageMeta";
+import { APP_NAME } from "@/lib/brand";
 
 type FilterTab = "all" | "expired" | "expiring-soon" | "safe";
 
@@ -24,6 +26,11 @@ const Index = () => {
   const [search, setSearch] = useState("");
   const inventoryQuery = useInventory(activeGroup?.id);
   const items = useMemo(() => inventoryQuery.data ?? [], [inventoryQuery.data]);
+
+  usePageMeta({
+    title: "Dashboard",
+    description: "Pantau stok rumah, masa simpan, dan aktivitas inventaris keluarga dari satu dashboard RumahQu.",
+  });
 
   const initials = user?.fullName
     ?.split(" ")
@@ -53,7 +60,7 @@ const Index = () => {
               <Package className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-xl font-extrabold leading-tight">PantryTrack</h1>
+              <h1 className="text-xl font-extrabold leading-tight">{APP_NAME}</h1>
               <p className="text-xs text-muted-foreground font-medium">Halo, {user?.fullName?.split(" ")[0] || "User"}!</p>
             </div>
           </div>

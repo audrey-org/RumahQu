@@ -531,7 +531,8 @@ export function createApp() {
         );
         const user = toSessionUser(insertedUser.rows[0]);
 
-        const groupName = `${input.fullName.split(" ")[0]}'s Pantry`;
+        const firstName = input.fullName.trim().split(/\s+/)[0] || "Keluarga";
+        const groupName = `Rumah ${firstName}`;
         const createdGroup = await client.query<{ id: string }>(
           `
             INSERT INTO groups (name, created_by)

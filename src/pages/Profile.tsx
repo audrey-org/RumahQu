@@ -8,12 +8,18 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 const Profile = () => {
   const { user, updateProfile, signOut } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [fullName, setFullName] = useState(user?.fullName || "");
+
+  usePageMeta({
+    title: "Profil",
+    description: "Kelola profil akun dan preferensi dasar Anda di RumahQu.",
+  });
 
   if (!user) {
     return null;

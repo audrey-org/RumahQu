@@ -5,8 +5,8 @@ import type { PoolClient } from "pg";
 import { env } from "./config.js";
 import type { SessionUser } from "../../shared/contracts.js";
 
-const SESSION_COOKIE_NAME = "pantrytrack_session";
-const CSRF_COOKIE_NAME = "pantrytrack_csrf";
+const SESSION_COOKIE_NAME = "rumahqu_session";
+const CSRF_COOKIE_NAME = "rumahqu_csrf";
 
 type CookieOptions = {
   httpOnly: boolean;

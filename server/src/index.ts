@@ -11,7 +11,7 @@ async function start() {
   const server = createServer(app);
 
   server.listen(env.PORT, () => {
-    console.log(`PantryTrack server listening on port ${env.PORT}`);
+    console.log(`RumahQu server listening on port ${env.PORT}`);
   });
 
   const shutdown = async () => {

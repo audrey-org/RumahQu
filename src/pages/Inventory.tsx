@@ -8,6 +8,7 @@ import { ItemCard } from "@/components/ItemCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 const Inventory = () => {
   const { activeGroup } = useGroup();
@@ -15,6 +16,11 @@ const Inventory = () => {
   const [openCategories, setOpenCategories] = useState<Set<string>>(() => new Set(CATEGORIES));
   const inventoryQuery = useInventory(activeGroup?.id);
   const currentItems = useMemo(() => inventoryQuery.data ?? [], [inventoryQuery.data]);
+
+  usePageMeta({
+    title: "Inventory",
+    description: "Lihat inventaris lengkap per kategori, stok aktif, dan barang yang mendekati masa kedaluwarsa di RumahQu.",
+  });
 
   const grouped = useMemo(() => {
     const map = new Map<string, InventoryItem[]>();

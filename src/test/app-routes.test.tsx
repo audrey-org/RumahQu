@@ -31,7 +31,7 @@ describe("app routes", () => {
 
     render(<App />);
 
-    expect(await screen.findByText("Pantau kadaluarsa rumah tangga")).toBeInTheDocument();
+    expect(await screen.findByText("Kelola inventaris rumah tangga bersama keluarga")).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Daftar" })).toBeInTheDocument();
   });
 
@@ -46,7 +46,7 @@ describe("app routes", () => {
           user: {
             id: "user-1",
             email: "alice@example.com",
-            fullName: "Alice Pantry",
+            fullName: "Alice Rumah",
             avatarUrl: null,
             createdAt: "2026-03-28T00:00:00.000Z",
           },
@@ -59,7 +59,7 @@ describe("app routes", () => {
           groups: [
             {
               id: "group-1",
-              name: "Alice's Pantry",
+              name: "Rumah Alice",
               role: "owner",
               memberCount: 1,
               createdBy: "user-1",
@@ -76,7 +76,7 @@ describe("app routes", () => {
             {
               userId: "user-1",
               email: "alice@example.com",
-              fullName: "Alice Pantry",
+              fullName: "Alice Rumah",
               role: "owner",
               joinedAt: "2026-03-28T00:00:00.000Z",
             },
@@ -91,7 +91,7 @@ describe("app routes", () => {
               id: "item-1",
               groupId: "group-1",
               addedBy: "user-1",
-              addedByName: "Alice Pantry",
+              addedByName: "Alice Rumah",
               name: "Susu UHT",
               category: "Minuman",
               quantity: 2,

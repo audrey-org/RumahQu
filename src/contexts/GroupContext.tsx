@@ -24,7 +24,7 @@ interface GroupContextType {
 const GroupContext = createContext<GroupContextType | null>(null);
 
 function getStorageKey(userId: string) {
-  return `pantrytrack-active-group:${userId}`;
+  return `rumahqu-active-group:${userId}`;
 }
 
 function readStoredActiveGroup(userId: string) {

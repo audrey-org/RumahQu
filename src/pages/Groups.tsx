@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
+import { usePageMeta } from "@/hooks/usePageMeta";
 
 const Groups = () => {
   const { user } = useAuth();
@@ -31,6 +32,11 @@ const Groups = () => {
   const [inviteEmail, setInviteEmail] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+
+  usePageMeta({
+    title: "Grup",
+    description: "Atur grup keluarga, kirim undangan, dan kolaborasi inventaris rumah tangga di RumahQu.",
+  });
 
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) return;

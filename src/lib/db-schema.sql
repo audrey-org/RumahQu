@@ -1,5 +1,5 @@
 -- ============================================================
--- PantryTrack Database Schema (Reference / Future Migration)
+-- RumahQu Database Schema (Reference / Future Migration)
 -- ============================================================
 
 -- 1. Profiles table (extends auth.users)
@@ -242,7 +242,7 @@ DECLARE
 BEGIN
   INSERT INTO public.groups (name, created_by)
   VALUES (
-    COALESCE(NEW.raw_user_meta_data ->> 'full_name', 'My') || '''s Pantry',
+    'Rumah ' || COALESCE(NULLIF(NEW.raw_user_meta_data ->> 'full_name', ''), 'Keluarga'),
     NEW.id
   )
   RETURNING id INTO new_group_id;

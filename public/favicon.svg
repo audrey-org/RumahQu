@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">RumahQu</title>
+  <desc id="desc">Ikon RumahQu berbentuk rumah di atas latar hijau toska.</desc>
+  <defs>
+    <linearGradient id="bg" x1="10" y1="8" x2="54" y2="56" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#14b8a6" />
+      <stop offset="1" stop-color="#0f766e" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="18" fill="url(#bg)" />
+  <path
+    d="M16.5 30.5 32 18l15.5 12.5v15A4.5 4.5 0 0 1 43 50H21a4.5 4.5 0 0 1-4.5-4.5v-15Z"
+    fill="#ffffff"
+  />
+  <path d="M24 49V34.5h16V49" fill="#ccfbf1" />
+  <path d="M28.5 49v-7.5a3.5 3.5 0 1 1 7 0V49" fill="#0f766e" />
+  <circle cx="45.5" cy="18.5" r="4.5" fill="#fef3c7" />
+</svg>

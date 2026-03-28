@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
+import { usePageMeta } from "@/hooks/usePageMeta";
+import { APP_NAME } from "@/lib/brand";
 
 const Auth = () => {
   const { signIn, signUp } = useAuth();
@@ -21,6 +23,11 @@ const Auth = () => {
   const [regPassword, setRegPassword] = useState("");
   const [regConfirm, setRegConfirm] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  usePageMeta({
+    title: "Masuk",
+    description: "Masuk atau daftar ke RumahQu untuk mengelola stok rumah tangga bersama keluarga.",
+  });
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,8 +69,8 @@ const Auth = () => {
           <div className="mx-auto bg-primary rounded-xl p-3 w-fit">
             <Package className="h-8 w-8 text-primary-foreground" />
           </div>
-          <CardTitle className="text-2xl font-extrabold">PantryTrack</CardTitle>
-          <CardDescription>Pantau kadaluarsa rumah tangga</CardDescription>
+          <CardTitle className="text-2xl font-extrabold">{APP_NAME}</CardTitle>
+          <CardDescription>Kelola inventaris rumah tangga bersama keluarga</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login">

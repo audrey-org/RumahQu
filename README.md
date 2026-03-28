@@ -1,6 +1,6 @@
-# PantryTrack
+# RumahQu
 
-PantryTrack adalah aplikasi manajemen inventaris rumah tangga berbasis React + TypeScript dengan backend TypeScript/Express dan PostgreSQL.
+RumahQu adalah aplikasi manajemen inventaris rumah tangga berbasis React + TypeScript dengan backend TypeScript/Express dan PostgreSQL.
 
 ## Stack
 
@@ -63,7 +63,7 @@ Stack deploy production yang disiapkan di repo ini:
 - `Dockerfile` untuk build frontend + backend dalam satu image
 - `docker-compose.prod.yml` untuk menjalankan app dan PostgreSQL
 - `.env.production.example` sebagai template environment VPS
-- `deploy/nginx/pantrytrack.conf` sebagai contoh reverse proxy Nginx
+- `deploy/nginx/rumahqu.conf` sebagai contoh reverse proxy Nginx
 
 ### 1. Push ke repository Git
 
@@ -76,8 +76,8 @@ git push -u origin main
 ### 2. Clone di VPS
 
 ```bash
-git clone <repo-anda> pantrytrack
-cd pantrytrack
+git clone <repo-anda> rumahqu
+cd rumahqu
 ```
 
 ### 3. Siapkan environment production
@@ -105,7 +105,7 @@ App akan listen di `127.0.0.1:3001`, jadi aman untuk diproxy lewat Nginx di VPS.
 
 ### 5. Pasang reverse proxy Nginx
 
-Gunakan contoh config di `deploy/nginx/pantrytrack.conf`, lalu arahkan domain ke VPS dan aktifkan HTTPS. Setelah HTTPS aktif, biarkan `COOKIE_SECURE=true`.
+Gunakan contoh config di `deploy/nginx/rumahqu.conf`, lalu arahkan domain ke VPS dan aktifkan HTTPS. Setelah HTTPS aktif, biarkan `COOKIE_SECURE=true`.
 
 ### 6. Update saat ada perubahan baru
 
@@ -200,21 +200,21 @@ src/
 Backup:
 
 ```bash
-pg_dump "%DATABASE_URL%" > pantrytrack-backup.sql
+pg_dump "%DATABASE_URL%" > rumahqu-backup.sql
 ```
 
 Restore:
 
 ```bash
-psql "%DATABASE_URL%" -f pantrytrack-backup.sql
+psql "%DATABASE_URL%" -f rumahqu-backup.sql
 ```
 
 Di PowerShell Anda juga bisa memakai:
 
 ```powershell
 $env:DATABASE_URL="postgresql://pantrytrack:pantrytrack@localhost:5432/pantrytrack"
-pg_dump $env:DATABASE_URL > pantrytrack-backup.sql
-psql $env:DATABASE_URL -f pantrytrack-backup.sql
+pg_dump $env:DATABASE_URL > rumahqu-backup.sql
+psql $env:DATABASE_URL -f rumahqu-backup.sql
 ```
 
 ## Catatan testing

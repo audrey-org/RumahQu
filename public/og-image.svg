@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">RumahQu</title>
+  <desc id="desc">Preview sosial RumahQu untuk aplikasi inventaris rumah tangga.</desc>
+  <defs>
+    <linearGradient id="bg" x1="80" y1="40" x2="1120" y2="590" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0f766e" />
+      <stop offset="0.55" stop-color="#115e59" />
+      <stop offset="1" stop-color="#134e4a" />
+    </linearGradient>
+    <linearGradient id="glow" x1="214" y1="138" x2="414" y2="338" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#99f6e4" stop-opacity="0.95" />
+      <stop offset="1" stop-color="#2dd4bf" stop-opacity="0.1" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" rx="36" fill="url(#bg)" />
+  <circle cx="1060" cy="98" r="92" fill="#14b8a6" opacity="0.12" />
+  <circle cx="940" cy="530" r="130" fill="#99f6e4" opacity="0.08" />
+  <rect x="90" y="106" width="244" height="244" rx="56" fill="url(#glow)" />
+  <rect x="110" y="126" width="204" height="204" rx="48" fill="#f0fdfa" />
+  <path
+    d="M148 229.5 212 177l64 52.5V292a20 20 0 0 1-20 20h-88a20 20 0 0 1-20-20v-62.5Z"
+    fill="#0f766e"
+  />
+  <path d="M176 308v-56h72v56" fill="#99f6e4" />
+  <path d="M194 308v-29a18 18 0 1 1 36 0v29" fill="#134e4a" />
+  <circle cx="274" cy="158" r="18" fill="#f59e0b" />
+  <text x="390" y="235" fill="#f0fdfa" font-family="Georgia, 'Times New Roman', serif" font-size="86" font-weight="700">
+    RumahQu
+  </text>
+  <text x="390" y="310" fill="#ccfbf1" font-family="'Trebuchet MS', Verdana, sans-serif" font-size="34">
+    Inventaris rumah tangga yang rapi, kolaboratif, dan mudah dipantau.
+  </text>
+  <text x="390" y="380" fill="#99f6e4" font-family="'Trebuchet MS', Verdana, sans-serif" font-size="26">
+    Pantau stok. Cek masa simpan. Bekerja bareng keluarga.
+  </text>
+</svg>
