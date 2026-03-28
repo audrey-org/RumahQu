@@ -11,6 +11,7 @@ import type {
   GroupMember,
   GroupSummary,
   InventoryItem,
+  ShoppingListItem,
   PendingInvite,
   SessionResponse,
   SessionUser,
@@ -92,6 +93,24 @@ type InventoryRow = {
   updated_at: Date;
 };
 
+type ShoppingListRow = {
+  id: string;
+  group_id: string;
+  created_by: string | null;
+  created_by_name: string | null;
+  purchased_by: string | null;
+  purchased_by_name: string | null;
+  name: string;
+  category: string;
+  quantity: number;
+  unit: string;
+  notes: string | null;
+  is_purchased: boolean;
+  purchased_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const frontendDistDirectory = path.resolve(__dirname, "../../../dist");
 const frontendIndexFile = path.join(frontendDistDirectory, "index.html");
@@ -138,6 +157,28 @@ const updateInventoryItemSchema = z
     unit: z.string().trim().min(1).max(40).optional(),
     expirationDate: z.string().trim().min(1).optional(),
     notes: z.string().trim().max(500).nullable().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, {
+    message: "At least one field must be updated",
+  });
+
+const createShoppingListItemSchema = z.object({
+  groupId: z.string().uuid(),
+  name: z.string().trim().min(1).max(120),
+  category: z.string().trim().min(1).max(120),
+  quantity: z.number().int().positive(),
+  unit: z.string().trim().min(1).max(40),
+  notes: z.string().trim().max(500).optional(),
+});
+
+const updateShoppingListItemSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+    category: z.string().trim().min(1).max(120).optional(),
+    quantity: z.number().int().positive().optional(),
+    unit: z.string().trim().min(1).max(40).optional(),
+    notes: z.string().trim().max(500).nullable().optional(),
+    isPurchased: z.boolean().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "At least one field must be updated",
@@ -217,6 +258,26 @@ function toInventoryItem(row: InventoryRow): InventoryItem {
     unit: row.unit,
     expirationDate,
     notes: row.notes,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function toShoppingListItem(row: ShoppingListRow): ShoppingListItem {
+  return {
+    id: row.id,
+    groupId: row.group_id,
+    createdBy: row.created_by,
+    createdByName: row.created_by_name,
+    purchasedBy: row.purchased_by,
+    purchasedByName: row.purchased_by_name,
+    name: row.name,
+    category: row.category,
+    quantity: row.quantity,
+    unit: row.unit,
+    notes: row.notes,
+    isPurchased: row.is_purchased,
+    purchasedAt: row.purchased_at?.toISOString() ?? null,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -357,6 +418,36 @@ async function fetchInventoryItem(itemId: string) {
       FROM inventory_items i
       LEFT JOIN users creator ON creator.id = i.added_by
       WHERE i.id = $1
+    `,
+    [itemId],
+  );
+
+  return result.rows[0] ?? null;
+}
+
+async function fetchShoppingListItem(itemId: string) {
+  const result = await query<ShoppingListRow>(
+    `
+      SELECT
+        s.id,
+        s.group_id,
+        s.created_by,
+        creator.full_name AS created_by_name,
+        s.purchased_by,
+        purchaser.full_name AS purchased_by_name,
+        s.name,
+        s.category,
+        s.quantity,
+        s.unit,
+        s.notes,
+        s.is_purchased,
+        s.purchased_at,
+        s.created_at,
+        s.updated_at
+      FROM shopping_list_items s
+      LEFT JOIN users creator ON creator.id = s.created_by
+      LEFT JOIN users purchaser ON purchaser.id = s.purchased_by
+      WHERE s.id = $1
     `,
     [itemId],
   );
@@ -914,6 +1005,165 @@ export function createApp() {
 
       await query("DELETE FROM group_members WHERE group_id = $1 AND user_id = $2", [groupId, userId]);
       res.json({ success: true });
+    }),
+  );
+
+  app.get(
+    "/api/shopping-list",
+    asyncHandler(async (req, res) => {
+      const user = await requireAuth(req);
+      const parsedGroupId = z.string().uuid().safeParse(req.query.groupId);
+
+      if (!parsedGroupId.success) {
+        throw new AppError(400, "VALIDATION_ERROR", "groupId wajib diisi");
+      }
+
+      const groupId = parsedGroupId.data;
+      await assertGroupMember(groupId, user.id);
+
+      const result = await query<ShoppingListRow>(
+        `
+          SELECT
+            s.id,
+            s.group_id,
+            s.created_by,
+            creator.full_name AS created_by_name,
+            s.purchased_by,
+            purchaser.full_name AS purchased_by_name,
+            s.name,
+            s.category,
+            s.quantity,
+            s.unit,
+            s.notes,
+            s.is_purchased,
+            s.purchased_at,
+            s.created_at,
+            s.updated_at
+          FROM shopping_list_items s
+          LEFT JOIN users creator ON creator.id = s.created_by
+          LEFT JOIN users purchaser ON purchaser.id = s.purchased_by
+          WHERE s.group_id = $1
+          ORDER BY s.is_purchased ASC, s.created_at DESC
+        `,
+        [groupId],
+      );
+
+      res.json({
+        items: result.rows.map(toShoppingListItem),
+      });
+    }),
+  );
+
+  app.post(
+    "/api/shopping-list",
+    asyncHandler(async (req, res) => {
+      requireCsrf(req);
+      const user = await requireAuth(req);
+      const input = parseBody(createShoppingListItemSchema, req.body);
+      await assertGroupMember(input.groupId, user.id);
+
+      const inserted = await query<{ id: string }>(
+        `
+          INSERT INTO shopping_list_items (
+            group_id,
+            created_by,
+            name,
+            category,
+            quantity,
+            unit,
+            notes
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          RETURNING id
+        `,
+        [input.groupId, user.id, input.name, input.category, input.quantity, input.unit, input.notes ?? null],
+      );
+
+      const item = await fetchShoppingListItem(inserted.rows[0].id);
+      res.status(201).json(toShoppingListItem(item!));
+    }),
+  );
+
+  app.patch(
+    "/api/shopping-list/:itemId",
+    asyncHandler(async (req, res) => {
+      requireCsrf(req);
+      const user = await requireAuth(req);
+      const itemId = getRouteParam(req.params.itemId, "itemId");
+      const input = parseBody(updateShoppingListItemSchema, req.body);
+      const item = await fetchShoppingListItem(itemId);
+
+      if (!item) {
+        throw new AppError(404, "SHOPPING_ITEM_NOT_FOUND", "Item belanja tidak ditemukan");
+      }
+
+      await assertGroupMember(item.group_id, user.id);
+
+      const nextName = input.name ?? item.name;
+      const nextCategory = input.category ?? item.category;
+      const nextQuantity = input.quantity ?? item.quantity;
+      const nextUnit = input.unit ?? item.unit;
+      const nextNotes = input.notes === undefined ? item.notes : input.notes;
+      const nextIsPurchased = input.isPurchased ?? item.is_purchased;
+      const nextPurchasedBy =
+        input.isPurchased === undefined
+          ? item.purchased_by
+          : input.isPurchased
+            ? user.id
+            : null;
+      const nextPurchasedAt =
+        input.isPurchased === undefined
+          ? item.purchased_at
+          : input.isPurchased
+            ? new Date()
+            : null;
+
+      await query(
+        `
+          UPDATE shopping_list_items
+          SET name = $2,
+              category = $3,
+              quantity = $4,
+              unit = $5,
+              notes = $6,
+              is_purchased = $7,
+              purchased_by = $8,
+              purchased_at = $9
+          WHERE id = $1
+        `,
+        [
+          itemId,
+          nextName,
+          nextCategory,
+          nextQuantity,
+          nextUnit,
+          nextNotes,
+          nextIsPurchased,
+          nextPurchasedBy,
+          nextPurchasedAt,
+        ],
+      );
+
+      const updatedItem = await fetchShoppingListItem(itemId);
+      res.json(toShoppingListItem(updatedItem!));
+    }),
+  );
+
+  app.delete(
+    "/api/shopping-list/:itemId",
+    asyncHandler(async (req, res) => {
+      requireCsrf(req);
+      const user = await requireAuth(req);
+      const itemId = getRouteParam(req.params.itemId, "itemId");
+      const item = await fetchShoppingListItem(itemId);
+
+      if (!item) {
+        throw new AppError(404, "SHOPPING_ITEM_NOT_FOUND", "Item belanja tidak ditemukan");
+      }
+
+      await assertGroupMember(item.group_id, user.id);
+      await query("DELETE FROM shopping_list_items WHERE id = $1", [itemId]);
+      res.status(204).send();
     }),
   );
 

@@ -48,6 +48,7 @@ export async function resetDatabaseForTests() {
       sessions,
       group_invites,
       group_members,
+      shopping_list_items,
       inventory_items,
       groups,
       users

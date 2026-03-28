@@ -94,6 +94,46 @@ export interface UpdateInventoryItemInput {
   notes?: string | null;
 }
 
+export interface ShoppingListItem {
+  id: string;
+  groupId: string;
+  createdBy: string | null;
+  createdByName: string | null;
+  purchasedBy: string | null;
+  purchasedByName: string | null;
+  name: string;
+  category: string;
+  quantity: number;
+  unit: string;
+  notes: string | null;
+  isPurchased: boolean;
+  purchasedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShoppingListResponse {
+  items: ShoppingListItem[];
+}
+
+export interface CreateShoppingListItemInput {
+  groupId: string;
+  name: string;
+  category: string;
+  quantity: number;
+  unit: string;
+  notes?: string;
+}
+
+export interface UpdateShoppingListItemInput {
+  name?: string;
+  category?: string;
+  quantity?: number;
+  unit?: string;
+  notes?: string | null;
+  isPurchased?: boolean;
+}
+
 export interface UpdateProfileInput {
   fullName: string;
   avatarUrl?: string | null;
