@@ -5,7 +5,9 @@ import { getExpiryStatus } from "@/lib/inventory";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGroup } from "@/contexts/GroupContext";
 import { useInventory } from "@/hooks/useInventory";
+import { useExpiringSoonNotification } from "@/hooks/useExpiringSoonNotification";
 import { AddItemDialog } from "@/components/AddItemDialog";
+import { ExpiringSoonAlert } from "@/components/ExpiringSoonAlert";
 import { ItemCard } from "@/components/ItemCard";
 import { StatsCards } from "@/components/StatsCards";
 import { GroupSwitcher } from "@/components/GroupSwitcher";
@@ -26,6 +28,7 @@ const Index = () => {
   const [search, setSearch] = useState("");
   const inventoryQuery = useInventory(activeGroup?.id);
   const items = useMemo(() => inventoryQuery.data ?? [], [inventoryQuery.data]);
+  useExpiringSoonNotification(items, activeGroup?.id, activeGroup?.name);
 
   usePageMeta({
     title: "Dashboard",
@@ -100,6 +103,8 @@ const Index = () => {
             Gagal memuat inventory. Silakan coba lagi.
           </div>
         )}
+
+        <ExpiringSoonAlert items={items} onViewAll={() => navigate("/inventory")} />
 
         <StatsCards items={items} />
 

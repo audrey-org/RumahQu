@@ -4,6 +4,7 @@ import { ArrowLeft, Package, ChevronDown, ChevronRight } from "lucide-react";
 import { CATEGORIES, getExpiryStatus, type InventoryItem } from "@/lib/inventory";
 import { useGroup } from "@/contexts/GroupContext";
 import { useInventory } from "@/hooks/useInventory";
+import { ExpiringSoonAlert } from "@/components/ExpiringSoonAlert";
 import { ItemCard } from "@/components/ItemCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -78,6 +79,8 @@ const Inventory = () => {
             Gagal memuat inventory untuk grup ini.
           </div>
         )}
+
+        <ExpiringSoonAlert items={currentItems} />
 
         {inventoryQuery.isLoading ? (
           <div className="text-center py-16 text-muted-foreground">Memuat inventory...</div>
