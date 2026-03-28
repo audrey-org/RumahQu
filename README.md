@@ -61,7 +61,7 @@ Frontend akan tersedia di `http://localhost:8080`, backend di `http://localhost:
 Stack deploy production yang disiapkan di repo ini:
 
 - `Dockerfile` untuk build frontend + backend dalam satu image
-- `docker-compose.prod.yml` untuk menjalankan app dan PostgreSQL
+- `docker-compose.prod.yml` untuk menjalankan app production
 - `.env.production.example` sebagai template environment VPS
 - `deploy/nginx/rumahqu.conf` sebagai contoh reverse proxy Nginx
 
@@ -88,14 +88,33 @@ cp .env.production.example .env.production
 
 Isi minimal value berikut dengan data production Anda:
 
-- `POSTGRES_PASSWORD`
 - `DATABASE_URL`
 - `SESSION_SECRET`
 - `APP_ORIGIN`
 
 `APP_ORIGIN` harus sama persis dengan domain HTTPS aplikasi Anda, misalnya `https://rumahqu.com`.
 
-### 4. Jalankan container production
+Untuk setup production di repo ini, PostgreSQL diasumsikan terpasang native di VPS, bukan lewat Docker Compose. Karena app tetap berjalan di container Docker, `DATABASE_URL` harus mengarah ke host VPS memakai hostname `host.docker.internal`, misalnya:
+
+```env
+DATABASE_URL=postgresql://pantrytrack:password-aman@host.docker.internal:5432/pantrytrack
+DATABASE_SSL=false
+```
+
+Jika Anda memakai PostgreSQL managed yang mewajibkan TLS, set `DATABASE_SSL=true`. Jika sertifikatnya self-signed, Anda juga bisa set `DATABASE_SSL_REJECT_UNAUTHORIZED=false`.
+
+### 4. Siapkan PostgreSQL di VPS
+
+Install PostgreSQL di OS VPS Anda, lalu buat database dan user production. Contoh perintah SQL:
+
+```sql
+CREATE USER pantrytrack WITH PASSWORD 'ganti-dengan-password-yang-kuat';
+CREATE DATABASE pantrytrack OWNER pantrytrack;
+```
+
+Pastikan PostgreSQL menerima koneksi dari host lokal VPS pada port `5432`, karena container app akan connect ke database host melalui `host.docker.internal`.
+
+### 5. Jalankan container production
 
 ```bash
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
@@ -103,11 +122,13 @@ docker compose --env-file .env.production -f docker-compose.prod.yml up -d --bui
 
 App akan listen di `127.0.0.1:3001`, jadi aman untuk diproxy lewat Nginx di VPS.
 
-### 5. Pasang reverse proxy Nginx
+Saat container start, backend akan otomatis menjalankan migrasi database sebelum menerima request.
+
+### 6. Pasang reverse proxy Nginx
 
 Gunakan contoh config di `deploy/nginx/rumahqu.conf`, lalu arahkan domain ke VPS dan aktifkan HTTPS. Setelah HTTPS aktif, biarkan `COOKIE_SECURE=true`.
 
-### 6. Update saat ada perubahan baru
+### 7. Update saat ada perubahan baru
 
 ```bash
 git pull
@@ -118,7 +139,6 @@ docker compose --env-file .env.production -f docker-compose.prod.yml up -d --bui
 
 ```bash
 docker compose --env-file .env.production -f docker-compose.prod.yml logs -f app
-docker compose --env-file .env.production -f docker-compose.prod.yml logs -f postgres
 docker compose --env-file .env.production -f docker-compose.prod.yml ps
 ```
 
@@ -148,6 +168,8 @@ npm run test
 - `PORT`: port backend
 - `NODE_ENV`: `development`, `test`, atau `production`
 - `DATABASE_URL`: koneksi Postgres utama
+- `DATABASE_SSL`: aktifkan TLS untuk koneksi Postgres jika database mewajibkannya
+- `DATABASE_SSL_REJECT_UNAUTHORIZED`: validasi sertifikat TLS Postgres saat `DATABASE_SSL=true`
 - `TEST_DATABASE_URL`: koneksi Postgres untuk integration test API
 - `SESSION_SECRET`: secret minimal 32 karakter untuk hashing token session
 - `APP_ORIGIN`: origin frontend yang diizinkan oleh CORS

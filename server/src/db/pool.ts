@@ -8,7 +8,9 @@ export function getPool() {
     pool = new Pool({
       connectionString: env.DATABASE_URL,
       max: env.NODE_ENV === "test" ? 1 : 10,
-      ssl: env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined,
+      ssl: env.DATABASE_SSL
+        ? { rejectUnauthorized: env.DATABASE_SSL_REJECT_UNAUTHORIZED }
+        : undefined,
     });
   }
 
