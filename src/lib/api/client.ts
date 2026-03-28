@@ -1,6 +1,7 @@
 import type {
   ApiError,
   AuthResponse,
+  CreateShoppingListItemInput,
   GroupMembersResponse,
   GroupSummary,
   GroupsResponse,
@@ -8,6 +9,9 @@ import type {
   InventoryResponse,
   PendingInvite,
   SessionResponse,
+  ShoppingListItem,
+  ShoppingListResponse,
+  UpdateShoppingListItemInput,
   UpdateInventoryItemInput,
   UpdateProfileInput,
 } from "@/lib/contracts";
@@ -194,6 +198,11 @@ export const api = {
       searchParams: { groupId },
     });
   },
+  getShoppingList(groupId: string) {
+    return request<ShoppingListResponse>("/api/shopping-list", {
+      searchParams: { groupId },
+    });
+  },
   createInventoryItem(input: {
     groupId: string;
     name: string;
@@ -208,14 +217,31 @@ export const api = {
       body: input,
     });
   },
+  createShoppingListItem(input: CreateShoppingListItemInput) {
+    return request<ShoppingListItem>("/api/shopping-list", {
+      method: "POST",
+      body: input,
+    });
+  },
   updateInventoryItem(itemId: string, input: UpdateInventoryItemInput) {
     return request<InventoryItem>(`/api/inventory/${itemId}`, {
       method: "PATCH",
       body: input,
     });
   },
+  updateShoppingListItem(itemId: string, input: UpdateShoppingListItemInput) {
+    return request<ShoppingListItem>(`/api/shopping-list/${itemId}`, {
+      method: "PATCH",
+      body: input,
+    });
+  },
   deleteInventoryItem(itemId: string) {
     return request<void>(`/api/inventory/${itemId}`, {
+      method: "DELETE",
+    });
+  },
+  deleteShoppingListItem(itemId: string) {
+    return request<void>(`/api/shopping-list/${itemId}`, {
       method: "DELETE",
     });
   },

@@ -1105,18 +1105,18 @@ export function createApp() {
       const nextUnit = input.unit ?? item.unit;
       const nextNotes = input.notes === undefined ? item.notes : input.notes;
       const nextIsPurchased = input.isPurchased ?? item.is_purchased;
-      const nextPurchasedBy =
-        input.isPurchased === undefined
-          ? item.purchased_by
-          : input.isPurchased
-            ? user.id
-            : null;
-      const nextPurchasedAt =
-        input.isPurchased === undefined
-          ? item.purchased_at
-          : input.isPurchased
-            ? new Date()
-            : null;
+      const hasPurchaseStateChanged =
+        input.isPurchased !== undefined && input.isPurchased !== item.is_purchased;
+      const nextPurchasedBy = hasPurchaseStateChanged
+        ? nextIsPurchased
+          ? user.id
+          : null
+        : item.purchased_by;
+      const nextPurchasedAt = hasPurchaseStateChanged
+        ? nextIsPurchased
+          ? new Date()
+          : null
+        : item.purchased_at;
 
       await query(
         `

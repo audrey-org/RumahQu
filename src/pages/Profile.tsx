@@ -58,7 +58,7 @@ const Profile = () => {
         </div>
       </header>
 
-      <main className="container max-w-md mx-auto px-4 py-8 space-y-6">
+      <main className="container mx-auto max-w-md space-y-6 px-4 py-8 pb-32 md:pb-8">
         <div className="flex flex-col items-center gap-3">
           <Avatar className="h-20 w-20">
             <AvatarFallback className="text-2xl font-bold bg-primary text-primary-foreground">

@@ -105,6 +105,30 @@ describe("app routes", () => {
         });
       }
 
+      if (url.includes("/api/shopping-list?groupId=group-1")) {
+        return jsonResponse({
+          items: [
+            {
+              id: "shopping-1",
+              groupId: "group-1",
+              createdBy: "user-1",
+              createdByName: "Alice Rumah",
+              purchasedBy: null,
+              purchasedByName: null,
+              name: "Telur",
+              category: "Makanan",
+              quantity: 2,
+              unit: "kg",
+              notes: "Untuk sarapan minggu depan",
+              isPurchased: false,
+              purchasedAt: null,
+              createdAt: "2026-03-28T00:00:00.000Z",
+              updatedAt: "2026-03-28T00:00:00.000Z",
+            },
+          ],
+        });
+      }
+
       return jsonResponse({ error: { code: "NOT_FOUND", message: `Unhandled request: ${url}` } }, 404);
     });
 
@@ -114,5 +138,7 @@ describe("app routes", () => {
     await waitFor(() => {
       expect(screen.getByText("Susu UHT")).toBeInTheDocument();
     });
+    expect(screen.getByText("Daftar Belanja Restock")).toBeInTheDocument();
+    expect(screen.getByText("Telur")).toBeInTheDocument();
   });
 });

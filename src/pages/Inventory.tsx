@@ -73,7 +73,7 @@ const Inventory = () => {
         </div>
       </header>
 
-      <main className="container max-w-4xl mx-auto px-4 py-6 space-y-3">
+      <main className="container max-w-4xl mx-auto space-y-3 px-4 py-6 pb-32 md:pb-6">
         {inventoryQuery.error && (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             Gagal memuat inventory untuk grup ini.

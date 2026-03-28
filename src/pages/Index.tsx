@@ -4,11 +4,13 @@ import { Package, ClipboardList, Users } from "lucide-react";
 import { getExpiryStatus } from "@/lib/inventory";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGroup } from "@/contexts/GroupContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useInventory } from "@/hooks/useInventory";
 import { useExpiringSoonNotification } from "@/hooks/useExpiringSoonNotification";
 import { AddItemDialog } from "@/components/AddItemDialog";
 import { ExpiringSoonAlert } from "@/components/ExpiringSoonAlert";
 import { ItemCard } from "@/components/ItemCard";
+import { ShoppingListSection } from "@/components/ShoppingListSection";
 import { StatsCards } from "@/components/StatsCards";
 import { GroupSwitcher } from "@/components/GroupSwitcher";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,6 +26,7 @@ const Index = () => {
   const { user } = useAuth();
   const { activeGroup, pendingInvites, error: groupError } = useGroup();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [filter, setFilter] = useState<FilterTab>("all");
   const [search, setSearch] = useState("");
   const inventoryQuery = useInventory(activeGroup?.id);
@@ -62,12 +65,12 @@ const Index = () => {
             <div className="bg-primary rounded-xl p-2">
               <Package className="h-6 w-6 text-primary-foreground" />
             </div>
-            <div>
+          <div>
               <h1 className="text-xl font-extrabold leading-tight">{APP_NAME}</h1>
               <p className="text-xs text-muted-foreground font-medium">Halo, {user?.fullName?.split(" ")[0] || "User"}!</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="hidden items-center gap-2 md:flex">
             <AddItemDialog onAdded={() => void inventoryQuery.refetch()} groupId={activeGroup?.id} />
             <Button variant="outline" size="icon" onClick={() => navigate("/inventory")} className="rounded-full" title="Lihat Inventory">
               <ClipboardList className="h-4 w-4" />
@@ -89,13 +92,27 @@ const Index = () => {
         </div>
       </header>
 
-      <main className="container max-w-4xl mx-auto px-4 py-6 space-y-6">
+      <main className="container max-w-4xl mx-auto space-y-6 px-4 py-6 pb-32 md:pb-6">
         <GroupSwitcher />
 
         {groupError && (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             {groupError}
           </div>
+        )}
+
+        {isMobile && pendingInvites.length > 0 && (
+          <Button
+            variant="outline"
+            onClick={() => navigate("/groups")}
+            className="flex w-full items-center justify-between rounded-2xl border-primary/30 bg-primary/5 py-6"
+          >
+            <span className="flex items-center gap-2 text-left">
+              <Users className="h-4 w-4 text-primary" />
+              <span className="font-semibold">Ada {pendingInvites.length} undangan grup menunggu</span>
+            </span>
+            <span className="text-xs font-bold text-primary">Buka</span>
+          </Button>
         )}
 
         {inventoryQuery.error && (
@@ -107,6 +124,7 @@ const Index = () => {
         <ExpiringSoonAlert items={items} onViewAll={() => navigate("/inventory")} />
 
         <StatsCards items={items} />
+        <ShoppingListSection groupId={activeGroup?.id} />
 
         <div className="flex flex-col sm:flex-row gap-3">
           <Tabs value={filter} onValueChange={(v) => setFilter(v as FilterTab)} className="w-full sm:w-auto">

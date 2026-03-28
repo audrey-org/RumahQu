@@ -159,6 +159,89 @@ describeIfDatabase("RumahQu API", () => {
     expect(strangerInventoryResponse.status).toBe(403);
   });
 
+  it("supports a shared shopping list for restocking needs", async () => {
+    const alice = request.agent(app);
+    const bob = request.agent(app);
+
+    await registerUser(alice, {
+      email: "alice-restock@example.com",
+      password: "hunter22",
+      fullName: "Alice Restock",
+    });
+    await registerUser(bob, {
+      email: "bob-restock@example.com",
+      password: "hunter22",
+      fullName: "Bob Restock",
+    });
+
+    const groupsResponse = await alice.get("/api/groups");
+    const groupId = groupsResponse.body.groups[0].id as string;
+
+    const inviteCsrf = await bootstrapCsrf(alice);
+    const inviteResponse = await alice
+      .post(`/api/groups/${groupId}/invites`)
+      .set("x-csrf-token", inviteCsrf)
+      .send({ email: "bob-restock@example.com" });
+
+    expect(inviteResponse.status).toBe(201);
+
+    const bobGroups = await bob.get("/api/groups");
+    const bobAcceptCsrf = await bootstrapCsrf(bob);
+    const acceptResponse = await bob
+      .post(`/api/invites/${bobGroups.body.pendingInvites[0].id}/accept`)
+      .set("x-csrf-token", bobAcceptCsrf)
+      .send({});
+
+    expect(acceptResponse.status).toBe(200);
+
+    const aliceCsrf = await bootstrapCsrf(alice);
+    const createResponse = await alice
+      .post("/api/shopping-list")
+      .set("x-csrf-token", aliceCsrf)
+      .send({
+        groupId,
+        name: "Minyak goreng",
+        category: "Bumbu Dapur",
+        quantity: 2,
+        unit: "liter",
+        notes: "Beli yang kemasan refill",
+      });
+
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.body).toMatchObject({
+      name: "Minyak goreng",
+      isPurchased: false,
+      createdByName: "Alice Restock",
+    });
+
+    const shoppingListResponse = await bob.get(`/api/shopping-list?groupId=${groupId}`);
+    expect(shoppingListResponse.status).toBe(200);
+    expect(shoppingListResponse.body.items).toHaveLength(1);
+    expect(shoppingListResponse.body.items[0].name).toBe("Minyak goreng");
+
+    const bobCsrf = await bootstrapCsrf(bob);
+    const updateResponse = await bob
+      .patch(`/api/shopping-list/${shoppingListResponse.body.items[0].id}`)
+      .set("x-csrf-token", bobCsrf)
+      .send({ isPurchased: true });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body).toMatchObject({
+      isPurchased: true,
+      purchasedByName: "Bob Restock",
+    });
+
+    const deleteResponse = await alice
+      .delete(`/api/shopping-list/${shoppingListResponse.body.items[0].id}`)
+      .set("x-csrf-token", aliceCsrf);
+
+    expect(deleteResponse.status).toBe(204);
+
+    const emptyShoppingListResponse = await alice.get(`/api/shopping-list?groupId=${groupId}`);
+    expect(emptyShoppingListResponse.status).toBe(200);
+    expect(emptyShoppingListResponse.body.items).toHaveLength(0);
+  });
+
   it("prevents owners from leaving their own group", async () => {
     const agent = request.agent(app);
     const user = await registerUser(agent, {

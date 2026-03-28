@@ -93,7 +93,7 @@ const Groups = () => {
         </div>
       </header>
 
-      <main className="container max-w-4xl mx-auto px-4 py-6 space-y-6">
+      <main className="container max-w-4xl mx-auto space-y-6 px-4 py-6 pb-32 md:pb-6">
         {error && (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
             {error}

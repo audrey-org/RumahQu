@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { format } from "date-fns";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CalendarIcon, Plus } from "lucide-react";
@@ -26,9 +26,10 @@ import { useToast } from "@/hooks/use-toast";
 interface Props {
   onAdded: () => void;
   groupId?: string;
+  trigger?: ReactNode;
 }
 
-export function AddItemDialog({ onAdded, groupId }: Props) {
+export function AddItemDialog({ onAdded, groupId, trigger }: Props) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -90,10 +91,12 @@ export function AddItemDialog({ onAdded, groupId }: Props) {
       }}
     >
       <DialogTrigger asChild>
-        <Button size="lg" className="gap-2 rounded-full shadow-lg font-bold text-base">
-          <Plus className="h-5 w-5" />
-          Tambah Barang
-        </Button>
+        {trigger ?? (
+          <Button size="lg" className="gap-2 rounded-full shadow-lg font-bold text-base">
+            <Plus className="h-5 w-5" />
+            Tambah Barang
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
