@@ -1,4 +1,5 @@
 import type {
+  AddMissingIngredientsResponse,
   ApiError,
   AuthResponse,
   CreateShoppingListItemInput,
@@ -7,6 +8,7 @@ import type {
   GroupsResponse,
   InventoryItem,
   InventoryResponse,
+  MealRecommendationsResponse,
   PasswordResetEmailResponse,
   PasswordResetResponse,
   PendingInvite,
@@ -220,6 +222,11 @@ export const api = {
       searchParams: { groupId },
     });
   },
+  getMealRecommendations(groupId: string) {
+    return request<MealRecommendationsResponse>("/api/meal-recommendations", {
+      searchParams: { groupId },
+    });
+  },
   getShoppingList(groupId: string) {
     return request<ShoppingListResponse>("/api/shopping-list", {
       searchParams: { groupId },
@@ -244,6 +251,15 @@ export const api = {
       method: "POST",
       body: input,
     });
+  },
+  addMissingIngredientsToShoppingList(recipeId: string, groupId: string) {
+    return request<AddMissingIngredientsResponse>(
+      `/api/meal-recommendations/${recipeId}/add-missing-to-shopping-list`,
+      {
+        method: "POST",
+        body: { groupId },
+      },
+    );
   },
   updateInventoryItem(itemId: string, input: UpdateInventoryItemInput) {
     return request<InventoryItem>(`/api/inventory/${itemId}`, {

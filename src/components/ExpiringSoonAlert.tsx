@@ -17,9 +17,19 @@ interface Props {
   items: InventoryItem[];
   className?: string;
   onViewAll?: () => void;
+  notificationSupported?: boolean;
+  notificationPermission?: NotificationPermission | "unsupported";
+  onEnableNotifications?: () => void;
 }
 
-export function ExpiringSoonAlert({ items, className, onViewAll }: Props) {
+export function ExpiringSoonAlert({
+  items,
+  className,
+  onViewAll,
+  notificationSupported = false,
+  notificationPermission = "unsupported",
+  onEnableNotifications,
+}: Props) {
   const expiringSoonItems = useMemo(() => getExpiringSoonItems(items), [items]);
 
   if (expiringSoonItems.length === 0) return null;
@@ -43,6 +53,27 @@ export function ExpiringSoonAlert({ items, className, onViewAll }: Props) {
 
       <AlertDescription className="space-y-3">
         <p>{summary}</p>
+
+        {notificationSupported && notificationPermission !== "granted" && (
+          <div className="rounded-md border border-expiring-soon/30 bg-background/80 px-3 py-3">
+            <p className="text-xs text-muted-foreground">
+              {notificationPermission === "denied"
+                ? "Notifikasi browser sedang diblokir. Aktifkan lagi dari pengaturan browser agar pengingat stok bisa muncul seperti notifikasi homescreen."
+                : "Aktifkan notifikasi browser agar pengingat stok tampil sebagai notifikasi sistem, termasuk saat app dibuka dari homescreen."}
+            </p>
+            {notificationPermission !== "denied" && onEnableNotifications && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onEnableNotifications}
+                className="mt-3 w-full sm:w-auto"
+              >
+                Aktifkan notifikasi browser
+              </Button>
+            )}
+          </div>
+        )}
 
         <div className="grid gap-2">
           {previewItems.map((item) => (

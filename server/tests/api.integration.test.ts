@@ -10,6 +10,12 @@ let app: Express;
 let resetDatabaseForTests: typeof import("../src/db/migrate.js")["resetDatabaseForTests"];
 let closePool: typeof import("../src/db/pool.js")["closePool"];
 
+function isoDateFromToday(offsetDays: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+  return date.toISOString().slice(0, 10);
+}
+
 async function bootstrapCsrf(agent: ReturnType<typeof request.agent>) {
   const response = await agent.get("/api/auth/me");
   return response.body.csrfToken as string;
@@ -361,6 +367,89 @@ describeIfDatabase("RumahQu API", () => {
     const emptyShoppingListResponse = await alice.get(`/api/shopping-list?groupId=${groupId}`);
     expect(emptyShoppingListResponse.status).toBe(200);
     expect(emptyShoppingListResponse.body.items).toHaveLength(0);
+  });
+
+  it("builds deterministic meal recommendations and can add missing ingredients to shopping list", async () => {
+    const alice = request.agent(app);
+    const stranger = request.agent(app);
+
+    await registerAndVerifyUser(alice, {
+      email: "alice-menu@example.com",
+      password: "hunter22",
+      fullName: "Alice Menu",
+    });
+    await registerAndVerifyUser(stranger, {
+      email: "stranger-menu@example.com",
+      password: "hunter22",
+      fullName: "Stranger Menu",
+    });
+
+    const groupsResponse = await alice.get("/api/groups");
+    const groupId = groupsResponse.body.groups[0].id as string;
+    const csrfToken = await bootstrapCsrf(alice);
+
+    const createRiceResponse = await alice.post("/api/inventory").set("x-csrf-token", csrfToken).send({
+      groupId,
+      name: "rice",
+      category: "Makanan",
+      quantity: 1,
+      unit: "kg",
+      expirationDate: isoDateFromToday(120),
+    });
+    expect(createRiceResponse.status).toBe(201);
+
+    const createEggResponse = await alice.post("/api/inventory").set("x-csrf-token", csrfToken).send({
+      groupId,
+      name: "telor",
+      category: "Makanan",
+      quantity: 6,
+      unit: "pcs",
+      expirationDate: isoDateFromToday(2),
+    });
+    expect(createEggResponse.status).toBe(201);
+
+    const recommendationsResponse = await alice.get(`/api/meal-recommendations?groupId=${groupId}`);
+    expect(recommendationsResponse.status).toBe(200);
+    expect(recommendationsResponse.body.totalCatalogRecipes).toBeGreaterThanOrEqual(200);
+
+    const targetRecipe = recommendationsResponse.body.recommendations.find(
+      (recommendation: { recipeId: string }) => recommendation.recipeId === "indo-nasi-goreng-telur",
+    );
+
+    expect(targetRecipe).toBeTruthy();
+    expect(targetRecipe.bucket).toBe("kurang-sedikit");
+    expect(targetRecipe.missingIngredients[0].ingredientId).toBe("kecap_manis");
+
+    const strangerRecommendationsResponse = await stranger.get(`/api/meal-recommendations?groupId=${groupId}`);
+    expect(strangerRecommendationsResponse.status).toBe(403);
+
+    const addMissingResponse = await alice
+      .post("/api/meal-recommendations/indo-nasi-goreng-telur/add-missing-to-shopping-list")
+      .set("x-csrf-token", csrfToken)
+      .send({ groupId });
+
+    expect(addMissingResponse.status).toBe(200);
+    expect(addMissingResponse.body.addedItems).toHaveLength(1);
+    expect(addMissingResponse.body.addedItems[0]).toMatchObject({
+      ingredientId: "kecap_manis",
+      name: "Kecap Manis",
+      category: "Bumbu Dapur",
+    });
+
+    const duplicateAddResponse = await alice
+      .post("/api/meal-recommendations/indo-nasi-goreng-telur/add-missing-to-shopping-list")
+      .set("x-csrf-token", csrfToken)
+      .send({ groupId });
+
+    expect(duplicateAddResponse.status).toBe(200);
+    expect(duplicateAddResponse.body.addedItems).toHaveLength(0);
+    expect(duplicateAddResponse.body.skippedItems).toEqual([
+      {
+        ingredientId: "kecap_manis",
+        name: "Kecap Manis",
+        reason: "already-in-shopping-list",
+      },
+    ]);
   });
 
   it("prevents owners from leaving their own group", async () => {

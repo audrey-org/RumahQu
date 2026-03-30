@@ -1,30 +1,67 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ExpiringSoonAlert } from "@/components/ExpiringSoonAlert";
 import { useExpiringSoonNotification } from "@/hooks/useExpiringSoonNotification";
 import type { InventoryItem } from "@/lib/contracts";
 
-const { warningMock, dismissMock } = vi.hoisted(() => ({
-  warningMock: vi.fn(),
-  dismissMock: vi.fn(),
+const {
+  closeSystemNotificationsMock,
+  getSystemNotificationPermissionMock,
+  requestSystemNotificationPermissionMock,
+  showSystemNotificationMock,
+  supportsSystemNotificationsMock,
+} = vi.hoisted(() => ({
+  closeSystemNotificationsMock: vi.fn(),
+  getSystemNotificationPermissionMock: vi.fn(),
+  requestSystemNotificationPermissionMock: vi.fn(),
+  showSystemNotificationMock: vi.fn(),
+  supportsSystemNotificationsMock: vi.fn(),
 }));
 
-vi.mock("@/components/ui/sonner", () => ({
-  toast: {
-    warning: warningMock,
-    dismiss: dismissMock,
-  },
+vi.mock("@/lib/browser-notifications", () => ({
+  EXPIRY_NOTIFICATION_TAG: "inventory-expiring-soon",
+  closeSystemNotifications: closeSystemNotificationsMock,
+  getSystemNotificationPermission: getSystemNotificationPermissionMock,
+  requestSystemNotificationPermission: requestSystemNotificationPermissionMock,
+  showSystemNotification: showSystemNotificationMock,
+  supportsSystemNotifications: supportsSystemNotificationsMock,
 }));
 
 function NotificationHarness({ items }: { items: InventoryItem[] }) {
-  useExpiringSoonNotification(items, "group-1", "Rumah Alice");
-  return <ExpiringSoonAlert items={items} />;
+  const { notificationsSupported, notificationPermission, enableNotifications } = useExpiringSoonNotification(
+    items,
+    "group-1",
+    "Rumah Alice",
+  );
+
+  return (
+    <ExpiringSoonAlert
+      items={items}
+      notificationSupported={notificationsSupported}
+      notificationPermission={notificationPermission}
+      onEnableNotifications={() => void enableNotifications()}
+    />
+  );
+}
+
+async function flushEffects() {
+  await Promise.resolve();
+  await Promise.resolve();
 }
 
 describe("expiring soon notification", () => {
   beforeEach(() => {
-    warningMock.mockClear();
-    dismissMock.mockClear();
+    closeSystemNotificationsMock.mockClear();
+    getSystemNotificationPermissionMock.mockClear();
+    requestSystemNotificationPermissionMock.mockClear();
+    showSystemNotificationMock.mockClear();
+    supportsSystemNotificationsMock.mockClear();
+    supportsSystemNotificationsMock.mockReturnValue(true);
+    getSystemNotificationPermissionMock.mockReturnValue("granted");
+    requestSystemNotificationPermissionMock.mockResolvedValue("granted");
+    showSystemNotificationMock.mockResolvedValue(true);
+    closeSystemNotificationsMock.mockResolvedValue(undefined);
+    window.localStorage.clear();
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-03-28T00:00:00.000Z"));
   });
@@ -34,7 +71,7 @@ describe("expiring soon notification", () => {
     vi.restoreAllMocks();
   });
 
-  it("shows an alert and triggers a toast for items that will expire soon", () => {
+  it("shows an alert and triggers a browser notification for items that will expire soon", async () => {
     const items: InventoryItem[] = [
       {
         id: "item-1",
@@ -73,19 +110,46 @@ describe("expiring soon notification", () => {
     expect(screen.getByText("Susu UHT")).toBeInTheDocument();
     expect(screen.getAllByText(/5 hari lagi/i).length).toBeGreaterThan(0);
 
-    expect(warningMock).toHaveBeenCalledTimes(1);
-    expect(warningMock).toHaveBeenCalledWith(
-      "1 barang segera kedaluwarsa",
-      expect.objectContaining({
-        id: "inventory-expiring-soon",
-        description: "Rumah Alice: Susu UHT (5 hari lagi). Cek stok untuk 7 hari ke depan.",
-        duration: 6000,
-        position: "top-right",
-      }),
-    );
+    await flushEffects();
+    expect(showSystemNotificationMock).toHaveBeenCalledTimes(1);
+    expect(showSystemNotificationMock).toHaveBeenCalledWith({
+      title: "1 barang segera kedaluwarsa",
+      body: "Rumah Alice: Susu UHT (5 hari lagi). Cek stok untuk 7 hari ke depan.",
+      tag: "inventory-expiring-soon",
+      url: "/inventory",
+    });
   });
 
-  it("does not show an alert when all items are still safe", () => {
+  it("shows a browser notification permission action when permission is not granted", () => {
+    getSystemNotificationPermissionMock.mockReturnValue("default");
+
+    const items: InventoryItem[] = [
+      {
+        id: "item-4",
+        groupId: "group-1",
+        addedBy: "user-1",
+        addedByName: "Alice Rumah",
+        name: "Yogurt",
+        category: "Minuman",
+        quantity: 1,
+        unit: "botol",
+        expirationDate: "2026-04-01",
+        notes: null,
+        createdAt: "2026-03-28T00:00:00.000Z",
+        updatedAt: "2026-03-28T00:00:00.000Z",
+      },
+    ];
+
+    render(<NotificationHarness items={items} />);
+
+    expect(screen.getByRole("button", { name: "Aktifkan notifikasi browser" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Aktifkan notifikasi browser" }));
+
+    expect(requestSystemNotificationPermissionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not show an alert when all items are still safe", async () => {
     const items: InventoryItem[] = [
       {
         id: "item-3",
@@ -106,7 +170,8 @@ describe("expiring soon notification", () => {
     render(<NotificationHarness items={items} />);
 
     expect(screen.queryByText("Notifikasi stok")).not.toBeInTheDocument();
-    expect(warningMock).not.toHaveBeenCalled();
-    expect(dismissMock).toHaveBeenCalledWith("inventory-expiring-soon");
+    expect(showSystemNotificationMock).not.toHaveBeenCalled();
+    await flushEffects();
+    expect(closeSystemNotificationsMock).toHaveBeenCalledWith("inventory-expiring-soon");
   });
 });

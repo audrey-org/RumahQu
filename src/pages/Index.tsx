@@ -12,6 +12,7 @@ import { ExpiringSoonAlert } from "@/components/ExpiringSoonAlert";
 import { ItemCard } from "@/components/ItemCard";
 import { ShoppingListSection } from "@/components/ShoppingListSection";
 import { StatsCards } from "@/components/StatsCards";
+import { MealRecommendationsSection } from "@/components/MealRecommendationsSection";
 import { GroupSwitcher } from "@/components/GroupSwitcher";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
@@ -31,7 +32,11 @@ const Index = () => {
   const [search, setSearch] = useState("");
   const inventoryQuery = useInventory(activeGroup?.id);
   const items = useMemo(() => inventoryQuery.data ?? [], [inventoryQuery.data]);
-  useExpiringSoonNotification(items, activeGroup?.id, activeGroup?.name);
+  const { notificationsSupported, notificationPermission, enableNotifications } = useExpiringSoonNotification(
+    items,
+    activeGroup?.id,
+    activeGroup?.name,
+  );
 
   usePageMeta({
     title: "Dashboard",
@@ -121,9 +126,16 @@ const Index = () => {
           </div>
         )}
 
-        <ExpiringSoonAlert items={items} onViewAll={() => navigate("/inventory")} />
+        <ExpiringSoonAlert
+          items={items}
+          onViewAll={() => navigate("/inventory")}
+          notificationSupported={notificationsSupported}
+          notificationPermission={notificationPermission}
+          onEnableNotifications={() => void enableNotifications()}
+        />
 
         <StatsCards items={items} />
+        <MealRecommendationsSection groupId={activeGroup?.id} />
         <ShoppingListSection groupId={activeGroup?.id} />
 
         <div className="flex flex-col sm:flex-row gap-3">

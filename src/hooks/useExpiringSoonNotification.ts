@@ -1,17 +1,45 @@
-import { useEffect, useMemo, useRef } from "react";
-import { toast } from "@/components/ui/sonner";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   EXPIRING_SOON_THRESHOLD_DAYS,
   formatExpiryCountdown,
   getExpiringSoonItems,
   type InventoryItem,
 } from "@/lib/inventory";
+import {
+  closeSystemNotifications,
+  EXPIRY_NOTIFICATION_TAG,
+  getSystemNotificationPermission,
+  requestSystemNotificationPermission,
+  showSystemNotification,
+  supportsSystemNotifications,
+  type SystemNotificationPermission,
+} from "@/lib/browser-notifications";
 
-const EXPIRY_NOTIFICATION_ID = "inventory-expiring-soon";
+const LAST_EXPIRY_NOTIFICATION_KEY = "rumahqu:last-expiry-notification";
+
+function readLastNotificationKey() {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(LAST_EXPIRY_NOTIFICATION_KEY);
+}
+
+function writeLastNotificationKey(value: string | null) {
+  if (typeof window === "undefined") return;
+
+  if (!value) {
+    window.localStorage.removeItem(LAST_EXPIRY_NOTIFICATION_KEY);
+    return;
+  }
+
+  window.localStorage.setItem(LAST_EXPIRY_NOTIFICATION_KEY, value);
+}
 
 export function useExpiringSoonNotification(items: InventoryItem[], groupId?: string, groupName?: string | null) {
   const expiringSoonItems = useMemo(() => getExpiringSoonItems(items), [items]);
   const lastNotificationKeyRef = useRef<string | null>(null);
+  const notificationsSupported = supportsSystemNotifications();
+  const [notificationPermission, setNotificationPermission] = useState<SystemNotificationPermission>(() =>
+    getSystemNotificationPermission(),
+  );
 
   const notificationKey = useMemo(() => {
     if (expiringSoonItems.length === 0) return null;
@@ -23,17 +51,41 @@ export function useExpiringSoonNotification(items: InventoryItem[], groupId?: st
   }, [expiringSoonItems, groupId]);
 
   useEffect(() => {
+    if (!notificationsSupported) return;
+
+    const syncPermission = () => {
+      setNotificationPermission(getSystemNotificationPermission());
+    };
+
+    syncPermission();
+    window.addEventListener("focus", syncPermission);
+    document.addEventListener("visibilitychange", syncPermission);
+
+    return () => {
+      window.removeEventListener("focus", syncPermission);
+      document.removeEventListener("visibilitychange", syncPermission);
+    };
+  }, [notificationsSupported]);
+
+  useEffect(() => {
     if (!notificationKey) {
       lastNotificationKeyRef.current = null;
-      toast.dismiss(EXPIRY_NOTIFICATION_ID);
+      writeLastNotificationKey(null);
+      void closeSystemNotifications(EXPIRY_NOTIFICATION_TAG);
       return;
     }
 
-    if (notificationKey === lastNotificationKeyRef.current) {
+    if (notificationPermission !== "granted") {
+      return;
+    }
+
+    const lastPersistedKey = readLastNotificationKey();
+    if (notificationKey === lastNotificationKeyRef.current || notificationKey === lastPersistedKey) {
       return;
     }
 
     lastNotificationKeyRef.current = notificationKey;
+    writeLastNotificationKey(notificationKey);
 
     const previewItems = expiringSoonItems.slice(0, 2);
     const remainingItems = expiringSoonItems.length - previewItems.length;
@@ -45,11 +97,23 @@ export function useExpiringSoonNotification(items: InventoryItem[], groupId?: st
     const locationPrefix = groupName ? `${groupName}: ` : "";
     const suffix = remainingItems > 0 ? `, +${remainingItems} lainnya` : "";
 
-    toast.warning(title, {
-      id: EXPIRY_NOTIFICATION_ID,
-      description: `${locationPrefix}${itemPreview}${suffix}. Cek stok untuk ${EXPIRING_SOON_THRESHOLD_DAYS} hari ke depan.`,
-      duration: 6000,
-      position: "top-right",
+    void showSystemNotification({
+      title,
+      body: `${locationPrefix}${itemPreview}${suffix}. Cek stok untuk ${EXPIRING_SOON_THRESHOLD_DAYS} hari ke depan.`,
+      tag: EXPIRY_NOTIFICATION_TAG,
+      url: "/inventory",
     });
-  }, [expiringSoonItems, groupName, notificationKey]);
+  }, [expiringSoonItems, groupName, notificationKey, notificationPermission]);
+
+  const enableNotifications = async () => {
+    const nextPermission = await requestSystemNotificationPermission();
+    setNotificationPermission(nextPermission);
+    return nextPermission;
+  };
+
+  return {
+    notificationsSupported,
+    notificationPermission,
+    enableNotifications,
+  };
 }

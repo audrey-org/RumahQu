@@ -8,10 +8,12 @@ import type { PoolClient } from "pg";
 import { z } from "zod";
 import { verify as verifyPassword, hash as hashPassword, Algorithm } from "@node-rs/argon2";
 import type {
+  AddMissingIngredientsResponse,
   AuthResponse,
   GroupMember,
   GroupSummary,
   InventoryItem,
+  MealRecommendationsResponse,
   PasswordResetEmailResponse,
   PasswordResetResponse,
   ShoppingListItem,
@@ -31,6 +33,15 @@ import {
   sendVerificationEmail,
 } from "./email.js";
 import { logError, requestLogger } from "./logger.js";
+import {
+  getRecipeCatalogStats,
+  getRecipeDefinitionById,
+  normalizeCatalogText,
+} from "./meal-recommendations/catalog.js";
+import {
+  buildMealRecommendations,
+  getMissingRequiredIngredientsForRecipe,
+} from "./meal-recommendations/engine.js";
 import {
   clearAuthCookies,
   createRandomToken,
@@ -226,6 +237,10 @@ const updateShoppingListItemSchema = z
   .refine((value) => Object.keys(value).length > 0, {
     message: "At least one field must be updated",
   });
+
+const addMissingIngredientsSchema = z.object({
+  groupId: z.string().uuid(),
+});
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -529,6 +544,33 @@ async function fetchInventoryItem(itemId: string) {
   return result.rows[0] ?? null;
 }
 
+async function fetchInventoryByGroup(groupId: string) {
+  const result = await query<InventoryRow>(
+    `
+      SELECT
+        i.id,
+        i.group_id,
+        i.added_by,
+        creator.full_name AS added_by_name,
+        i.name,
+        i.category,
+        i.quantity,
+        i.unit,
+        i.expiration_date,
+        i.notes,
+        i.created_at,
+        i.updated_at
+      FROM inventory_items i
+      LEFT JOIN users creator ON creator.id = i.added_by
+      WHERE i.group_id = $1
+      ORDER BY i.expiration_date ASC, i.created_at DESC
+    `,
+    [groupId],
+  );
+
+  return result.rows;
+}
+
 async function fetchShoppingListItem(itemId: string) {
   const result = await query<ShoppingListRow>(
     `
@@ -557,6 +599,37 @@ async function fetchShoppingListItem(itemId: string) {
   );
 
   return result.rows[0] ?? null;
+}
+
+async function fetchShoppingListByGroup(groupId: string) {
+  const result = await query<ShoppingListRow>(
+    `
+      SELECT
+        s.id,
+        s.group_id,
+        s.created_by,
+        creator.full_name AS created_by_name,
+        s.purchased_by,
+        purchaser.full_name AS purchased_by_name,
+        s.name,
+        s.category,
+        s.quantity,
+        s.unit,
+        s.notes,
+        s.is_purchased,
+        s.purchased_at,
+        s.created_at,
+        s.updated_at
+      FROM shopping_list_items s
+      LEFT JOIN users creator ON creator.id = s.created_by
+      LEFT JOIN users purchaser ON purchaser.id = s.purchased_by
+      WHERE s.group_id = $1
+      ORDER BY s.is_purchased ASC, s.created_at DESC
+    `,
+    [groupId],
+  );
+
+  return result.rows;
 }
 
 async function buildAuthResponse(user: SessionUser, csrfToken: string): Promise<AuthResponse> {
@@ -1443,7 +1516,7 @@ export function createApp() {
   );
 
   app.get(
-    "/api/shopping-list",
+    "/api/meal-recommendations",
     asyncHandler(async (req, res) => {
       const user = await requireAuth(req);
       const parsedGroupId = z.string().uuid().safeParse(req.query.groupId);
@@ -1455,35 +1528,135 @@ export function createApp() {
       const groupId = parsedGroupId.data;
       await assertGroupMember(groupId, user.id);
 
-      const result = await query<ShoppingListRow>(
-        `
-          SELECT
-            s.id,
-            s.group_id,
-            s.created_by,
-            creator.full_name AS created_by_name,
-            s.purchased_by,
-            purchaser.full_name AS purchased_by_name,
-            s.name,
-            s.category,
-            s.quantity,
-            s.unit,
-            s.notes,
-            s.is_purchased,
-            s.purchased_at,
-            s.created_at,
-            s.updated_at
-          FROM shopping_list_items s
-          LEFT JOIN users creator ON creator.id = s.created_by
-          LEFT JOIN users purchaser ON purchaser.id = s.purchased_by
-          WHERE s.group_id = $1
-          ORDER BY s.is_purchased ASC, s.created_at DESC
-        `,
-        [groupId],
+      const inventoryRows = await fetchInventoryByGroup(groupId);
+      const recommendations = buildMealRecommendations(inventoryRows.map(toInventoryItem));
+      const catalogStats = getRecipeCatalogStats();
+      const payload: MealRecommendationsResponse = {
+        recommendations,
+        generatedAt: new Date().toISOString(),
+        totalCatalogRecipes: catalogStats.totalRecipes,
+      };
+
+      res.json(payload);
+    }),
+  );
+
+  app.post(
+    "/api/meal-recommendations/:recipeId/add-missing-to-shopping-list",
+    asyncHandler(async (req, res) => {
+      requireCsrf(req);
+      const user = await requireAuth(req);
+      const recipeId = getRouteParam(req.params.recipeId, "recipeId");
+      const input = parseBody(addMissingIngredientsSchema, req.body);
+      await assertGroupMember(input.groupId, user.id);
+
+      const recipe = getRecipeDefinitionById(recipeId);
+
+      if (!recipe) {
+        throw new AppError(404, "RECIPE_NOT_FOUND", "Resep tidak ditemukan");
+      }
+
+      const inventoryRows = await fetchInventoryByGroup(input.groupId);
+      const missingIngredients = getMissingRequiredIngredientsForRecipe(
+        recipeId,
+        inventoryRows.map(toInventoryItem),
       );
 
+      if (!missingIngredients) {
+        throw new AppError(404, "RECIPE_NOT_FOUND", "Resep tidak ditemukan");
+      }
+
+      const existingShoppingItems = await fetchShoppingListByGroup(input.groupId);
+      const activeShoppingKeys = new Set(
+        existingShoppingItems
+          .filter((item) => !item.is_purchased)
+          .map((item) => `${normalizeCatalogText(item.name)}::${normalizeCatalogText(item.category)}`),
+      );
+
+      const addedItems: AddMissingIngredientsResponse["addedItems"] = [];
+      const skippedItems: AddMissingIngredientsResponse["skippedItems"] = [];
+
+      if (missingIngredients.length > 0) {
+        await withTransaction(async (client) => {
+          for (const ingredient of missingIngredients) {
+            const key = `${normalizeCatalogText(ingredient.shoppingDefaults.name)}::${normalizeCatalogText(
+              ingredient.shoppingDefaults.category,
+            )}`;
+
+            if (activeShoppingKeys.has(key)) {
+              skippedItems.push({
+                ingredientId: ingredient.id,
+                name: ingredient.shoppingDefaults.name,
+                reason: "already-in-shopping-list",
+              });
+              continue;
+            }
+
+            const inserted = await client.query<{ id: string }>(
+              `
+                INSERT INTO shopping_list_items (
+                  group_id,
+                  created_by,
+                  name,
+                  category,
+                  quantity,
+                  unit,
+                  notes
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                RETURNING id
+              `,
+              [
+                input.groupId,
+                user.id,
+                ingredient.shoppingDefaults.name,
+                ingredient.shoppingDefaults.category,
+                ingredient.shoppingDefaults.quantity,
+                ingredient.shoppingDefaults.unit,
+                `Untuk menu: ${recipe.name}`,
+              ],
+            );
+
+            activeShoppingKeys.add(key);
+            addedItems.push({
+              ingredientId: ingredient.id,
+              shoppingListItemId: inserted.rows[0].id,
+              name: ingredient.shoppingDefaults.name,
+              category: ingredient.shoppingDefaults.category,
+              quantity: ingredient.shoppingDefaults.quantity,
+              unit: ingredient.shoppingDefaults.unit,
+            });
+          }
+        });
+      }
+
+      const payload: AddMissingIngredientsResponse = {
+        recipeId: recipe.id,
+        recipeName: recipe.name,
+        addedItems,
+        skippedItems,
+      };
+
+      res.json(payload);
+    }),
+  );
+
+  app.get(
+    "/api/shopping-list",
+    asyncHandler(async (req, res) => {
+      const user = await requireAuth(req);
+      const parsedGroupId = z.string().uuid().safeParse(req.query.groupId);
+
+      if (!parsedGroupId.success) {
+        throw new AppError(400, "VALIDATION_ERROR", "groupId wajib diisi");
+      }
+
+      const groupId = parsedGroupId.data;
+      await assertGroupMember(groupId, user.id);
+      const result = await fetchShoppingListByGroup(groupId);
+
       res.json({
-        items: result.rows.map(toShoppingListItem),
+        items: result.map(toShoppingListItem),
       });
     }),
   );
@@ -1613,32 +1786,10 @@ export function createApp() {
 
       const groupId = parsedGroupId.data;
       await assertGroupMember(groupId, user.id);
-
-      const result = await query<InventoryRow>(
-        `
-          SELECT
-            i.id,
-            i.group_id,
-            i.added_by,
-            creator.full_name AS added_by_name,
-            i.name,
-            i.category,
-            i.quantity,
-            i.unit,
-            i.expiration_date,
-            i.notes,
-            i.created_at,
-            i.updated_at
-          FROM inventory_items i
-          LEFT JOIN users creator ON creator.id = i.added_by
-          WHERE i.group_id = $1
-          ORDER BY i.expiration_date ASC, i.created_at DESC
-        `,
-        [groupId],
-      );
+      const result = await fetchInventoryByGroup(groupId);
 
       res.json({
-        items: result.rows.map(toInventoryItem),
+        items: result.map(toInventoryItem),
       });
     }),
   );

@@ -47,9 +47,14 @@ export function ItemCard({ item, onDeleted, groupId }: Props) {
     mutationFn: () => api.deleteInventoryItem(item.id),
     onSuccess: async () => {
       if (groupId) {
-        await queryClient.invalidateQueries({
-          queryKey: queryKeys.inventory(groupId),
-        });
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.inventory(groupId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.mealRecommendations(groupId),
+          }),
+        ]);
       }
       onDeleted();
     },

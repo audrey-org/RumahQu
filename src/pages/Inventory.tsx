@@ -16,14 +16,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { usePageMeta } from "@/hooks/usePageMeta";
+import { useExpiringSoonNotification } from "@/hooks/useExpiringSoonNotification";
 
 const Inventory = () => {
   const { activeGroup } = useGroup();
   const navigate = useNavigate();
-  const [openCategories, setOpenCategories] = useState<Set<string>>(() => new Set(CATEGORIES));
+  const [openCategories, setOpenCategories] = useState<Set<string>>(() => new Set());
   const inventoryQuery = useInventory(activeGroup?.id);
   const currentItems = useMemo(() => inventoryQuery.data ?? [], [inventoryQuery.data]);
   const lastUpdatedAt = useMemo(() => getLastInventoryUpdate(currentItems), [currentItems]);
+  const { notificationsSupported, notificationPermission, enableNotifications } = useExpiringSoonNotification(
+    currentItems,
+    activeGroup?.id,
+    activeGroup?.name,
+  );
 
   usePageMeta({
     title: "Inventory",
@@ -94,7 +100,12 @@ const Inventory = () => {
           </div>
         )}
 
-        <ExpiringSoonAlert items={currentItems} />
+        <ExpiringSoonAlert
+          items={currentItems}
+          notificationSupported={notificationsSupported}
+          notificationPermission={notificationPermission}
+          onEnableNotifications={() => void enableNotifications()}
+        />
 
         {inventoryQuery.isLoading ? (
           <div className="text-center py-16 text-muted-foreground">Memuat inventory...</div>

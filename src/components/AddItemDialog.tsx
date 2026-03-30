@@ -52,9 +52,14 @@ export function AddItemDialog({ onAdded, groupId, trigger }: Props) {
         notes: notes || undefined,
       }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.inventory(groupId!),
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.inventory(groupId!),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.mealRecommendations(groupId!),
+        }),
+      ]);
       reset();
       setOpen(false);
       onAdded();

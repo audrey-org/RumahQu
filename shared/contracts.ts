@@ -139,6 +139,74 @@ export interface ShoppingListResponse {
   items: ShoppingListItem[];
 }
 
+export type RecipeCuisine = "indonesia" | "internasional";
+
+export type MealRecommendationBucket =
+  | "prioritas-hari-ini"
+  | "bisa-dimasak"
+  | "kurang-sedikit";
+
+export interface RecommendationIngredientMatch {
+  ingredientId: string;
+  label: string;
+  matchedItemNames: string[];
+  isRequired: boolean;
+  isAvailable: boolean;
+  isExpiringSoon: boolean;
+  soonestExpiryDays: number | null;
+}
+
+export interface MealRecommendation {
+  recipeId: string;
+  name: string;
+  cuisine: RecipeCuisine;
+  summary: string;
+  tags: string[];
+  bucket: MealRecommendationBucket;
+  requiredCount: number;
+  availableRequiredCount: number;
+  matchedOptionalCount: number;
+  expiringSoonCount: number;
+  nearestExpiryInDays: number | null;
+  urgencyReason: string | null;
+  availableIngredients: RecommendationIngredientMatch[];
+  missingIngredients: RecommendationIngredientMatch[];
+  optionalMatches: RecommendationIngredientMatch[];
+}
+
+export interface MealRecommendationsResponse {
+  recommendations: MealRecommendation[];
+  generatedAt: string;
+  totalCatalogRecipes: number;
+}
+
+export type MissingIngredientSkipReason =
+  | "already-in-shopping-list"
+  | "already-available"
+  | "not-missing";
+
+export interface AddedShoppingListIngredient {
+  ingredientId: string;
+  shoppingListItemId: string;
+  name: string;
+  category: string;
+  quantity: number;
+  unit: string;
+}
+
+export interface SkippedShoppingListIngredient {
+  ingredientId: string;
+  name: string;
+  reason: MissingIngredientSkipReason;
+}
+
+export interface AddMissingIngredientsResponse {
+  recipeId: string;
+  recipeName: string;
+  addedItems: AddedShoppingListIngredient[];
+  skippedItems: SkippedShoppingListIngredient[];
+}
+
 export interface CreateShoppingListItemInput {
   groupId: string;
   name: string;

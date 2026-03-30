@@ -108,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryClient.setQueryData(queryKeys.session, session);
     queryClient.removeQueries({ queryKey: queryKeys.groups });
     queryClient.removeQueries({ queryKey: ["inventory"] });
+    queryClient.removeQueries({ queryKey: ["meal-recommendations"] });
   };
 
   const updateProfile = async (updates: UpdateProfileInput) => {
