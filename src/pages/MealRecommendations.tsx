@@ -39,6 +39,8 @@ const MealRecommendations = () => {
   usePageMeta({
     title: "Rekomendasi Masakan",
     description: "Lihat ide menu berdasarkan stok bahan yang tersedia di inventory RumahQu.",
+    noIndex: true,
+    canonicalPath: "/meal-recommendations",
   });
 
   const groupedRecommendations = useMemo(() => {

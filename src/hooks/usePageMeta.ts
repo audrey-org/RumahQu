@@ -1,14 +1,40 @@
 import { useEffect } from "react";
-import { APP_DESCRIPTION, buildPageTitle } from "@/lib/brand";
+import {
+  APP_DESCRIPTION,
+  DEFAULT_OG_IMAGE_URL,
+  buildCanonicalUrl,
+  buildPageTitle,
+} from "@/lib/brand";
 
-type MetaName = "description" | "robots" | "twitter:title" | "twitter:description";
-type MetaProperty = "og:title" | "og:description" | "og:url";
+type JsonLd = Record<string, unknown>;
+type MetaName =
+  | "description"
+  | "robots"
+  | "twitter:card"
+  | "twitter:title"
+  | "twitter:description"
+  | "twitter:image"
+  | "twitter:image:alt";
+type MetaProperty =
+  | "og:title"
+  | "og:description"
+  | "og:url"
+  | "og:type"
+  | "og:image"
+  | "og:image:alt";
 
 type UsePageMetaOptions = {
   title?: string;
   description?: string;
   noIndex?: boolean;
+  canonicalPath?: string;
+  image?: string;
+  imageAlt?: string;
+  type?: "website" | "article";
+  structuredData?: JsonLd[];
 };
+
+const STRUCTURED_DATA_SELECTOR = 'script[data-rumahqu-meta="structured-data"]';
 
 function upsertNamedMeta(name: MetaName, content: string) {
   let meta = document.head.querySelector(`meta[name="${name}"]`) as HTMLMetaElement | null;
@@ -46,19 +72,54 @@ function upsertCanonical(url: string) {
   link.setAttribute("href", url);
 }
 
-export function usePageMeta({ title, description = APP_DESCRIPTION, noIndex = false }: UsePageMetaOptions = {}) {
+function removeStructuredData() {
+  document.head.querySelectorAll(STRUCTURED_DATA_SELECTOR).forEach((script) => script.remove());
+}
+
+function appendStructuredData(structuredData: JsonLd[]) {
+  for (const entry of structuredData) {
+    const script = document.createElement("script");
+    script.type = "application/ld+json";
+    script.dataset.rumahquMeta = "structured-data";
+    script.text = JSON.stringify(entry);
+    document.head.appendChild(script);
+  }
+}
+
+export function usePageMeta({
+  title,
+  description = APP_DESCRIPTION,
+  noIndex = false,
+  canonicalPath,
+  image = DEFAULT_OG_IMAGE_URL,
+  imageAlt = "RumahQu, aplikasi inventaris rumah tangga",
+  type = "website",
+  structuredData = [],
+}: UsePageMetaOptions = {}) {
   useEffect(() => {
     const pageTitle = buildPageTitle(title);
-    const pageUrl = window.location.href;
+    const pageUrl = buildCanonicalUrl(canonicalPath ?? window.location.pathname);
 
     document.title = pageTitle;
     upsertNamedMeta("description", description);
     upsertNamedMeta("robots", noIndex ? "noindex, nofollow" : "index, follow");
+    upsertNamedMeta("twitter:card", "summary_large_image");
     upsertNamedMeta("twitter:title", pageTitle);
     upsertNamedMeta("twitter:description", description);
+    upsertNamedMeta("twitter:image", image);
+    upsertNamedMeta("twitter:image:alt", imageAlt);
     upsertPropertyMeta("og:title", pageTitle);
     upsertPropertyMeta("og:description", description);
     upsertPropertyMeta("og:url", pageUrl);
+    upsertPropertyMeta("og:type", type);
+    upsertPropertyMeta("og:image", image);
+    upsertPropertyMeta("og:image:alt", imageAlt);
     upsertCanonical(pageUrl);
-  }, [description, noIndex, title]);
+    removeStructuredData();
+    appendStructuredData(structuredData);
+
+    return () => {
+      removeStructuredData();
+    };
+  }, [canonicalPath, description, image, imageAlt, noIndex, structuredData, title, type]);
 }

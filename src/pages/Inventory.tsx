@@ -34,6 +34,8 @@ const Inventory = () => {
   usePageMeta({
     title: "Inventory",
     description: "Lihat inventaris lengkap per kategori, stok aktif, dan barang yang mendekati masa kedaluwarsa di RumahQu.",
+    noIndex: true,
+    canonicalPath: "/inventory",
   });
 
   const grouped = useMemo(() => {

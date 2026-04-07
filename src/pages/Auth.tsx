@@ -39,6 +39,8 @@ const Auth = () => {
   usePageMeta({
     title: "Masuk",
     description: "Masuk atau daftar ke RumahQu untuk mengelola stok rumah tangga bersama keluarga.",
+    noIndex: true,
+    canonicalPath: "/auth",
   });
 
   const mode = searchParams.get("mode");

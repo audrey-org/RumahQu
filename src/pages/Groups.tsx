@@ -36,6 +36,8 @@ const Groups = () => {
   usePageMeta({
     title: "Grup",
     description: "Atur grup keluarga, kirim undangan, dan kolaborasi inventaris rumah tangga di RumahQu.",
+    noIndex: true,
+    canonicalPath: "/groups",
   });
 
   const handleCreateGroup = async () => {

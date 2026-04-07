@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { GroupProvider } from "@/contexts/GroupContext";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
+import { AppErrorBoundary } from "@/components/AppErrorBoundary";
 import Home from "./pages/Home";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -43,29 +44,31 @@ const App = () => {
   }));
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <GroupProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/app" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-                <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
-                <Route path="/meal-recommendations" element={<ProtectedRoute><MealRecommendations /></ProtectedRoute>} />
-                <Route path="/groups" element={<ProtectedRoute><Groups /></ProtectedRoute>} />
-                <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-              <MobileBottomNav />
-            </BrowserRouter>
-          </TooltipProvider>
-        </GroupProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <AppErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <GroupProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/app" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+                  <Route path="/inventory" element={<ProtectedRoute><Inventory /></ProtectedRoute>} />
+                  <Route path="/meal-recommendations" element={<ProtectedRoute><MealRecommendations /></ProtectedRoute>} />
+                  <Route path="/groups" element={<ProtectedRoute><Groups /></ProtectedRoute>} />
+                  <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                  <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+                <MobileBottomNav />
+              </BrowserRouter>
+            </TooltipProvider>
+          </GroupProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </AppErrorBoundary>
   );
 };
 

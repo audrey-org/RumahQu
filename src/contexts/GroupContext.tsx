@@ -4,6 +4,11 @@ import { api, getErrorMessage } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
 import type { GroupMember, GroupSummary, PendingInvite } from "@/lib/contracts";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  safeLocalStorageGetItem,
+  safeLocalStorageRemoveItem,
+  safeLocalStorageSetItem,
+} from "@/lib/runtime-compat";
 
 interface GroupContextType {
   activeGroup: GroupSummary | null;
@@ -28,20 +33,18 @@ function getStorageKey(userId: string) {
 }
 
 function readStoredActiveGroup(userId: string) {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(getStorageKey(userId));
+  return safeLocalStorageGetItem(getStorageKey(userId));
 }
 
 function writeStoredActiveGroup(userId: string, groupId: string | null) {
-  if (typeof window === "undefined") return;
   const key = getStorageKey(userId);
 
   if (!groupId) {
-    window.localStorage.removeItem(key);
+    safeLocalStorageRemoveItem(key);
     return;
   }
 
-  window.localStorage.setItem(key, groupId);
+  safeLocalStorageSetItem(key, groupId);
 }
 
 export function GroupProvider({ children }: { children: ReactNode }) {

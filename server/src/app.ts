@@ -153,8 +153,15 @@ type PasswordResetTokenRow = {
 };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const frontendDistDirectory = path.resolve(__dirname, "../../../dist");
+const frontendDistCandidates = [
+  path.resolve(__dirname, "../../../dist"),
+  path.resolve(__dirname, "../../dist"),
+];
+const frontendDistDirectory =
+  frontendDistCandidates.find((candidate) => fs.existsSync(path.join(candidate, "index.html"))) ??
+  frontendDistCandidates[0];
 const frontendIndexFile = path.join(frontendDistDirectory, "index.html");
+const noIndexSpaPaths = new Set(["/auth", "/app", "/inventory", "/meal-recommendations", "/groups", "/profile"]);
 
 const registerSchema = z.object({
   email: z.string().trim().email(),
@@ -274,6 +281,10 @@ function buildPasswordResetUrl(token: string) {
   url.searchParams.set("mode", "reset-password");
   url.searchParams.set("token", token);
   return url.toString();
+}
+
+function shouldNoIndexSpaPath(requestPath: string) {
+  return noIndexSpaPaths.has(requestPath);
 }
 
 function buildRegisterResponse(email: string, verificationUrl?: string): RegisterResponse {
@@ -757,6 +768,41 @@ function createAuthRateLimiter() {
   });
 }
 
+function buildForwardedRequestOrigin(req: Request) {
+  const forwardedHost = req.header("x-forwarded-host") ?? req.header("host");
+  const forwardedProto = req.header("x-forwarded-proto") ?? req.protocol;
+
+  if (!forwardedHost || !forwardedProto) {
+    return null;
+  }
+
+  const protocol = forwardedProto.split(",")[0].trim();
+  const host = forwardedHost.split(",")[0].trim();
+
+  if (!protocol || !host) {
+    return null;
+  }
+
+  try {
+    return new URL(`${protocol}://${host}`).origin;
+  } catch {
+    return null;
+  }
+}
+
+function isAllowedCorsOrigin(req: Request, origin: string | undefined) {
+  if (!origin || env.allowedOrigins.includes(origin)) {
+    return true;
+  }
+
+  if (origin !== "null") {
+    return false;
+  }
+
+  const requestOrigin = buildForwardedRequestOrigin(req);
+  return requestOrigin ? env.allowedOrigins.includes(requestOrigin) : false;
+}
+
 export function createApp() {
   const app = express();
   const authRateLimiter = createAuthRateLimiter();
@@ -764,22 +810,35 @@ export function createApp() {
 
   app.set("trust proxy", env.NODE_ENV === "production");
   app.use(
-    cors({
-      origin(origin, callback) {
-        if (!origin || env.allowedOrigins.includes(origin)) {
-          callback(null, true);
-          return;
-        }
+    cors((req, callback) => {
+      const origin = req.header("origin");
 
-        callback(new AppError(403, "INVALID_ORIGIN", "Origin tidak diizinkan"));
-      },
-      credentials: true,
+      if (isAllowedCorsOrigin(req, origin)) {
+        callback(null, {
+          origin: true,
+          credentials: true,
+        });
+        return;
+      }
+
+      callback(new AppError(403, "INVALID_ORIGIN", "Origin tidak diizinkan"), {
+        origin: false,
+        credentials: true,
+      });
     }),
   );
   app.use(express.json({ limit: "1mb" }));
   app.use(requestLogger);
 
   if (env.NODE_ENV === "production" && hasFrontendBuild) {
+    app.use((req, res, next) => {
+      if (req.method === "GET" && shouldNoIndexSpaPath(req.path)) {
+        res.setHeader("X-Robots-Tag", "noindex, nofollow");
+      }
+
+      next();
+    });
+
     app.use(
       express.static(frontendDistDirectory, {
         index: false,
@@ -791,6 +850,10 @@ export function createApp() {
       if (req.method !== "GET" || req.path.startsWith("/api")) {
         next();
         return;
+      }
+
+      if (shouldNoIndexSpaPath(req.path)) {
+        res.setHeader("X-Robots-Tag", "noindex, nofollow");
       }
 
       res.sendFile(frontendIndexFile, (error) => {

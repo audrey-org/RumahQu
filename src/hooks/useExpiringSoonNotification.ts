@@ -14,23 +14,25 @@ import {
   supportsSystemNotifications,
   type SystemNotificationPermission,
 } from "@/lib/browser-notifications";
+import {
+  safeLocalStorageGetItem,
+  safeLocalStorageRemoveItem,
+  safeLocalStorageSetItem,
+} from "@/lib/runtime-compat";
 
 const LAST_EXPIRY_NOTIFICATION_KEY = "rumahqu:last-expiry-notification";
 
 function readLastNotificationKey() {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(LAST_EXPIRY_NOTIFICATION_KEY);
+  return safeLocalStorageGetItem(LAST_EXPIRY_NOTIFICATION_KEY);
 }
 
 function writeLastNotificationKey(value: string | null) {
-  if (typeof window === "undefined") return;
-
   if (!value) {
-    window.localStorage.removeItem(LAST_EXPIRY_NOTIFICATION_KEY);
+    safeLocalStorageRemoveItem(LAST_EXPIRY_NOTIFICATION_KEY);
     return;
   }
 
-  window.localStorage.setItem(LAST_EXPIRY_NOTIFICATION_KEY, value);
+  safeLocalStorageSetItem(LAST_EXPIRY_NOTIFICATION_KEY, value);
 }
 
 export function useExpiringSoonNotification(items: InventoryItem[], groupId?: string, groupName?: string | null) {

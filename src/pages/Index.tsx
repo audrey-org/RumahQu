@@ -41,6 +41,8 @@ const Index = () => {
   usePageMeta({
     title: "Dashboard",
     description: "Pantau stok rumah, masa simpan, dan aktivitas inventaris keluarga dari satu dashboard RumahQu.",
+    noIndex: true,
+    canonicalPath: "/app",
   });
 
   const initials = user?.fullName

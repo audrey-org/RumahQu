@@ -192,10 +192,15 @@ describe("app routes", () => {
 
     render(<App />);
 
-    expect(await screen.findByText("Belanja lebih tepat, masak lebih tenang, dan hentikan bahan dapur terbuang sia-sia.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Aplikasi stok dapur yang bantu keluarga belanja lebih tepat, masak lebih tenang, dan mengurangi bahan terbuang."),
+    ).toBeInTheDocument();
     expect(screen.getByText("Masalah yang sering terjadi di rumah")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Daftar Gratis" }).length).toBeGreaterThan(0);
     expect(screen.queryByRole("tab", { name: "Daftar" })).not.toBeInTheDocument();
+    expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute("href", "https://rumahqu.web.id/");
+    expect(document.querySelector('meta[name="robots"]')).toHaveAttribute("content", "index, follow");
+    expect(document.querySelectorAll('script[data-rumahqu-meta="structured-data"]').length).toBe(3);
   });
 
   it("redirects unauthenticated users from /app to the auth screen", async () => {
@@ -225,6 +230,8 @@ describe("app routes", () => {
 
     expect(await screen.findByRole("button", { name: "Kirim Link Reset Password" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Kembali ke login" })).toBeInTheDocument();
+    expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute("href", "https://rumahqu.web.id/auth");
+    expect(document.querySelector('meta[name="robots"]')).toHaveAttribute("content", "noindex, nofollow");
   });
 
   it("redirects authenticated users from / to /app and renders the dashboard", async () => {

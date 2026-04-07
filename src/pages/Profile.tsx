@@ -19,6 +19,8 @@ const Profile = () => {
   usePageMeta({
     title: "Profil",
     description: "Kelola profil akun dan preferensi dasar Anda di RumahQu.",
+    noIndex: true,
+    canonicalPath: "/profile",
   });
 
   if (!user) {

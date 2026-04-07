@@ -5,7 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { usePageMeta } from "@/hooks/usePageMeta";
-import { APP_NAME } from "@/lib/brand";
+import {
+  APP_LANGUAGE,
+  APP_NAME,
+  APP_SITE_URL,
+  DEFAULT_LOGO_URL,
+  DEFAULT_OG_IMAGE_URL,
+} from "@/lib/brand";
 
 const problems = [
   "Bahan sudah ada, tapi tetap kebeli lagi karena lupa stok di rumah.",
@@ -56,13 +62,97 @@ const steps = [
   },
 ];
 
+const useCases = [
+  {
+    title: "Sebagai aplikasi inventory rumah tangga",
+    description:
+      "Catat stok makanan, minuman, bumbu, dan kebutuhan rumah agar semua isi dapur terlihat jelas tanpa perlu cek satu per satu.",
+  },
+  {
+    title: "Sebagai aplikasi stok dapur harian",
+    description:
+      "Prioritaskan bahan yang harus dipakai lebih dulu, minimalkan makanan terbuang, dan rapikan keputusan masak setiap hari.",
+  },
+  {
+    title: "Sebagai aplikasi daftar belanja keluarga",
+    description:
+      "Ubah kebutuhan restock menjadi daftar belanja yang bisa dipantau bersama, jadi belanja mingguan lebih hemat dan terarah.",
+  },
+];
+
+const faqs = [
+  {
+    question: "Apa itu RumahQu?",
+    answer:
+      "RumahQu adalah aplikasi inventory rumah tangga berbasis web untuk memantau stok dapur, masa simpan bahan, daftar belanja, dan kolaborasi keluarga dalam satu tempat.",
+  },
+  {
+    question: "Siapa yang cocok menggunakan RumahQu?",
+    answer:
+      "RumahQu cocok untuk ibu rumah tangga, pasangan muda, keluarga kecil, dan siapa pun yang ingin mengatur stok bahan makanan serta belanja rumah dengan lebih rapi.",
+  },
+  {
+    question: "Apa manfaat utama aplikasi stok dapur seperti RumahQu?",
+    answer:
+      "Manfaat utamanya adalah mengurangi belanja dobel, menekan bahan makanan terbuang, mempercepat keputusan memasak, dan memudahkan keluarga berbagi informasi stok.",
+  },
+  {
+    question: "Apakah RumahQu bisa dipakai gratis?",
+    answer:
+      "Ya. Halaman awal RumahQu mengarahkan pengguna untuk daftar gratis sehingga keluarga bisa mulai mencatat stok dan daftar belanja tanpa hambatan awal.",
+  },
+];
+
 const Home = () => {
   const { user, loading } = useAuth();
 
   usePageMeta({
     title: "Kelola Stok Rumah Tanpa Bahan Terbuang",
     description:
-      "RumahQu membantu ibu rumah tangga memantau stok dapur, menghindari belanja dobel, dan mengolah bahan sebelum terbuang.",
+      "RumahQu adalah aplikasi inventory rumah tangga untuk memantau stok dapur, menghindari belanja dobel, mengelola daftar belanja, dan memasak sebelum bahan terbuang.",
+    canonicalPath: "/",
+    structuredData: [
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        name: APP_NAME,
+        url: APP_SITE_URL,
+        inLanguage: APP_LANGUAGE,
+        description:
+          "Aplikasi inventory rumah tangga untuk memantau stok dapur, belanja, dan masa simpan bahan keluarga.",
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        name: APP_NAME,
+        url: APP_SITE_URL,
+        logo: DEFAULT_LOGO_URL,
+        image: DEFAULT_OG_IMAGE_URL,
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        name: APP_NAME,
+        url: APP_SITE_URL,
+        image: DEFAULT_OG_IMAGE_URL,
+        applicationCategory: "LifestyleApplication",
+        operatingSystem: "Web",
+        inLanguage: APP_LANGUAGE,
+        offers: {
+          "@type": "Offer",
+          price: "0",
+          priceCurrency: "IDR",
+        },
+        description:
+          "Aplikasi stok dapur dan inventaris rumah tangga untuk memantau bahan, masa simpan, rekomendasi masakan, dan daftar belanja keluarga.",
+        featureList: [
+          "Pantau stok dapur dan inventaris rumah tangga",
+          "Pengingat bahan yang mendekati masa simpan",
+          "Daftar belanja keluarga yang bisa dibagikan",
+          "Rekomendasi masakan dari bahan yang tersedia",
+        ],
+      },
+    ],
   });
 
   if (loading) {
@@ -86,6 +176,17 @@ const Home = () => {
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Smart home inventory</p>
             </div>
           </div>
+          <div className="hidden items-center gap-6 md:flex">
+            <a href="#fitur" className="text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground">
+              Fitur
+            </a>
+            <a href="#cara-kerja" className="text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground">
+              Cara Kerja
+            </a>
+            <a href="#faq" className="text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground">
+              FAQ
+            </a>
+          </div>
           <div className="flex items-center gap-2">
             <Button asChild variant="ghost" className="hidden sm:inline-flex">
               <Link to="/auth?tab=login">Masuk</Link>
@@ -101,15 +202,15 @@ const Home = () => {
         <section className="container grid max-w-6xl gap-10 px-4 py-14 md:grid-cols-[1.1fr_0.9fr] md:py-20">
           <div className="space-y-7">
             <Badge className="rounded-full border border-primary/20 bg-primary/10 px-4 py-1 text-sm font-bold text-primary hover:bg-primary/10">
-              Untuk ibu rumah tangga yang ingin dapur selalu terkendali
+              Aplikasi inventory rumah tangga untuk dapur yang lebih terkendali
             </Badge>
             <div className="space-y-4">
               <h1 className="max-w-3xl text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl md:text-6xl">
-                Belanja lebih tepat, masak lebih tenang, dan hentikan bahan dapur terbuang sia-sia.
+                Aplikasi stok dapur yang bantu keluarga belanja lebih tepat, masak lebih tenang, dan mengurangi bahan terbuang.
               </h1>
               <p className="max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">
-                {APP_NAME} membantu Anda melihat stok rumah dengan jelas, tahu bahan mana yang harus dipakai dulu, dan
-                menyiapkan belanja tanpa drama lupa atau belanja dobel.
+                {APP_NAME} membantu Anda melihat stok rumah dengan jelas, tahu bahan mana yang harus dipakai dulu,
+                mengelola daftar belanja keluarga, dan menyiapkan masakan dari bahan yang sudah tersedia.
               </p>
             </div>
 
@@ -230,9 +331,22 @@ const Home = () => {
         </section>
 
         <section className="container max-w-6xl px-4 py-10 md:py-14">
+          <div className="grid gap-4 md:grid-cols-3">
+            {useCases.map((useCase) => (
+              <article key={useCase.title} className="rounded-[1.75rem] border border-border/60 bg-background/90 p-6 shadow-sm">
+                <h2 className="text-xl font-extrabold leading-snug">{useCase.title}</h2>
+                <p className="mt-3 text-sm leading-7 text-muted-foreground">{useCase.description}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section id="fitur" className="container max-w-6xl px-4 py-10 md:py-14">
           <div className="max-w-2xl">
             <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-primary">Yang Anda dapatkan</p>
-            <h2 className="mt-3 text-3xl font-extrabold leading-tight">RumahQu membantu Anda mengatur rumah dengan cara yang terasa ringan.</h2>
+            <h2 className="mt-3 text-3xl font-extrabold leading-tight">
+              RumahQu membantu Anda mengatur stok rumah, daftar belanja, dan keputusan masak dengan cara yang terasa ringan.
+            </h2>
           </div>
           <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {benefits.map((benefit) => {
@@ -252,6 +366,22 @@ const Home = () => {
         </section>
 
         <section className="container max-w-6xl px-4 py-10 md:py-14">
+          <div className="rounded-[2rem] border border-border/60 bg-card/85 p-6 shadow-sm md:p-8">
+            <div className="max-w-3xl">
+              <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-primary">Kenapa halaman ini relevan</p>
+              <h2 className="mt-3 text-3xl font-extrabold leading-tight">
+                Jika Anda mencari aplikasi inventory rumah tangga atau aplikasi stok dapur, RumahQu dirancang untuk kebutuhan itu.
+              </h2>
+              <p className="mt-4 text-base leading-8 text-muted-foreground">
+                RumahQu menggabungkan pencatatan stok bahan makanan, pengingat masa simpan, daftar belanja rumah, dan rekomendasi menu
+                dalam satu alur yang mudah dipakai keluarga di Indonesia. Fokusnya bukan sekadar mencatat barang, tetapi membantu rumah
+                tangga belanja lebih hemat, mengurangi food waste, dan menjaga dapur tetap siap pakai setiap hari.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section id="cara-kerja" className="container max-w-6xl px-4 py-10 md:py-14">
           <div className="rounded-[2rem] border border-border/60 bg-[linear-gradient(135deg,hsl(var(--primary)/0.08),hsl(36_30%_100%))] p-6 md:p-8">
             <div className="max-w-2xl">
               <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-primary">Cara kerja</p>
@@ -268,6 +398,21 @@ const Home = () => {
                 </div>
               ))}
             </div>
+          </div>
+        </section>
+
+        <section id="faq" className="container max-w-6xl px-4 py-10 md:py-14">
+          <div className="max-w-2xl">
+            <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-primary">FAQ</p>
+            <h2 className="mt-3 text-3xl font-extrabold leading-tight">Pertanyaan yang sering muncul sebelum mulai memakai RumahQu.</h2>
+          </div>
+          <div className="mt-8 grid gap-4">
+            {faqs.map((faq) => (
+              <article key={faq.question} className="rounded-[1.75rem] border border-border/60 bg-card/90 p-6 shadow-sm">
+                <h3 className="text-xl font-extrabold">{faq.question}</h3>
+                <p className="mt-3 text-sm leading-7 text-muted-foreground">{faq.answer}</p>
+              </article>
+            ))}
           </div>
         </section>
 

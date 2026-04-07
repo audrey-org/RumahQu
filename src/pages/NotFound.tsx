@@ -10,6 +10,7 @@ const NotFound = () => {
     title: "Halaman Tidak Ditemukan",
     description: "Halaman yang Anda cari tidak tersedia di RumahQu.",
     noIndex: true,
+    canonicalPath: location.pathname,
   });
 
   useEffect(() => {
