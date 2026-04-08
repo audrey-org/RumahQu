@@ -1,4 +1,5 @@
 export type GroupRole = "owner" | "member";
+export type AppRole = "user" | "admin";
 
 export interface SessionUser {
   id: string;
@@ -6,6 +7,7 @@ export interface SessionUser {
   fullName: string;
   avatarUrl: string | null;
   createdAt: string;
+  role: AppRole;
 }
 
 export type Profile = SessionUser;
@@ -236,4 +238,28 @@ export interface ApiError {
     message: string;
     details?: Record<string, unknown> | null;
   };
+}
+
+export interface AdminDailySignup {
+  date: string;
+  count: number;
+}
+
+export interface AdminStatsResponse {
+  totalUsers: number;
+  verifiedUsers: number;
+  dailySignups: AdminDailySignup[];
+}
+
+export interface AdminUserSummary {
+  id: string;
+  email: string;
+  fullName: string;
+  role: AppRole;
+  createdAt: string;
+  emailVerifiedAt: string | null;
+}
+
+export interface AdminUsersResponse {
+  users: AdminUserSummary[];
 }

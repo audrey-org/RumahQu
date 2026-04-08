@@ -14,69 +14,69 @@ import {
 } from "@/lib/brand";
 
 const problems = [
-  "Bahan sudah ada, tapi tetap kebeli lagi karena lupa stok di rumah.",
-  "Sayur, susu, dan lauk sering telat dipakai sampai akhirnya terbuang.",
-  "Belanja mingguan terasa capek karena semuanya harus diingat sendiri.",
+  "Sudah belanja, lalu baru sadar bahan yang sama masih ada di rumah.",
+  "Sayur, susu, dan lauk terlewat dipakai sampai akhirnya terbuang percuma.",
+  "Belanja dan masak terasa melelahkan karena semua stok harus diingat sendiri.",
 ];
 
 const benefits = [
   {
     icon: Package,
-    title: "Pantau stok dapur tanpa tebak-tebakan",
-    description: "Lihat barang yang masih aman, yang hampir habis, dan yang perlu segera dipakai dalam satu tampilan rapi.",
+    title: "Lihat isi dapur dalam hitungan detik",
+    description: "Cek stok rumah dari satu tampilan rapi tanpa perlu bongkar kulkas, rak, atau laci satu per satu.",
   },
   {
     icon: BellRing,
-    title: "Dapat pengingat sebelum bahan terbuang",
-    description: "RumahQu bantu ingatkan bahan yang mendekati masa simpan supaya bisa diolah lebih dulu.",
+    title: "Pakai bahan sebelum terlambat",
+    description: "RumahQu menandai bahan yang perlu diprioritaskan supaya lebih cepat dimasak, bukan telat disadari.",
   },
   {
     icon: ShoppingCart,
-    title: "Belanja lebih tepat, bukan lebih banyak",
-    description: "Buat daftar restock dari kebutuhan nyata di rumah, jadi belanja lebih hemat dan minim duplikasi.",
+    title: "Belanja sesuai kebutuhan nyata",
+    description: "Buat daftar restock dari stok yang benar-benar menipis agar belanja lebih hemat dan jauh dari pembelian dobel.",
   },
   {
     icon: ChefHat,
-    title: "Masak dari stok yang sudah ada",
-    description: "Temukan ide masakan berdasarkan isi dapur, agar bahan cepat terpakai dan menu harian lebih gampang diputuskan.",
+    title: "Ubah stok jadi ide menu",
+    description: "Temukan rekomendasi masakan dari bahan yang sudah tersedia supaya keputusan makan harian terasa lebih gampang.",
   },
   {
     icon: Users,
-    title: "Keluarga bisa bantu tanpa bikin ribet",
-    description: "Stok, daftar belanja, dan kebutuhan rumah bisa dipantau bersama dalam satu grup keluarga.",
+    title: "Satu rumah lihat catatan yang sama",
+    description: "Stok, daftar belanja, dan kebutuhan rumah bisa dipantau bersama agar komunikasi keluarga lebih rapi.",
   },
 ];
 
 const steps = [
   {
-    title: "Catat stok sekali, rumah lebih tenang setiap hari",
-    description: "Masukkan bahan yang baru dibeli atau yang sudah tersedia di dapur dan kulkas.",
+    title: "Catat barang yang baru masuk",
+    description: "Masukkan bahan yang baru dibeli atau stok yang sudah ada supaya isi rumah langsung tercatat rapi.",
   },
   {
-    title: "Pantau prioritas tanpa perlu ingat semuanya",
-    description: "Lihat barang yang mendekati habis atau kedaluwarsa dari dashboard yang mudah dibaca.",
+    title: "Lihat apa yang harus dipakai lebih dulu",
+    description: "Pantau bahan yang mendekati habis atau masa simpan dari dashboard yang mudah dibaca keluarga.",
   },
   {
-    title: "Belanja dan masak lebih yakin",
-    description: "Gunakan daftar restock dan rekomendasi menu untuk mengambil keputusan lebih cepat.",
+    title: "Belanja dan masak tanpa banyak ragu",
+    description: "Gunakan daftar restock dan ide menu untuk mengambil keputusan lebih cepat setiap hari.",
   },
 ];
 
 const useCases = [
   {
-    title: "Sebagai aplikasi inventory rumah tangga",
+    title: "Untuk keluarga yang ingin belanja lebih hemat",
     description:
-      "Catat stok makanan, minuman, bumbu, dan kebutuhan rumah agar semua isi dapur terlihat jelas tanpa perlu cek satu per satu.",
+      "Saat isi rumah terlihat jelas, Anda hanya membeli yang benar-benar dibutuhkan dan lebih tenang saat belanja mingguan.",
   },
   {
-    title: "Sebagai aplikasi stok dapur harian",
+    title: "Untuk rumah yang ingin mengurangi bahan terbuang",
     description:
-      "Prioritaskan bahan yang harus dipakai lebih dulu, minimalkan makanan terbuang, dan rapikan keputusan masak setiap hari.",
+      "Prioritaskan bahan yang harus dipakai lebih dulu agar food waste berkurang dan stok rumah terasa lebih terkontrol.",
   },
   {
-    title: "Sebagai aplikasi daftar belanja keluarga",
+    title: "Untuk dapur yang ingin terasa lebih ringan diurus",
     description:
-      "Ubah kebutuhan restock menjadi daftar belanja yang bisa dipantau bersama, jadi belanja mingguan lebih hemat dan terarah.",
+      "Masak, restock, dan koordinasi keluarga jadi lebih gampang karena semua informasi penting ada dalam satu aplikasi.",
   },
 ];
 
@@ -99,7 +99,7 @@ const faqs = [
   {
     question: "Apakah RumahQu bisa dipakai gratis?",
     answer:
-      "Ya. Halaman awal RumahQu mengarahkan pengguna untuk daftar gratis sehingga keluarga bisa mulai mencatat stok dan daftar belanja tanpa hambatan awal.",
+      "Ya. RumahQu bisa dipakai gratis untuk mulai mencatat stok, memantau bahan yang perlu dipakai dulu, dan membuat daftar belanja keluarga.",
   },
 ];
 
@@ -107,9 +107,9 @@ const Home = () => {
   const { user, loading } = useAuth();
 
   usePageMeta({
-    title: "Kelola Stok Rumah Tanpa Bahan Terbuang",
+    title: "Aplikasi Gratis untuk Stok Dapur & Belanja Keluarga",
     description:
-      "RumahQu adalah aplikasi inventory rumah tangga untuk memantau stok dapur, menghindari belanja dobel, mengelola daftar belanja, dan memasak sebelum bahan terbuang.",
+      "RumahQu adalah aplikasi gratis untuk cek stok dapur, pantau masa simpan, buat daftar belanja, dan temukan ide masak dari bahan yang sudah ada di rumah.",
     canonicalPath: "/",
     structuredData: [
       {
@@ -119,7 +119,7 @@ const Home = () => {
         url: APP_SITE_URL,
         inLanguage: APP_LANGUAGE,
         description:
-          "Aplikasi inventory rumah tangga untuk memantau stok dapur, belanja, dan masa simpan bahan keluarga.",
+          "Aplikasi gratis untuk memantau stok dapur, belanja, dan masa simpan bahan keluarga.",
       },
       {
         "@context": "https://schema.org",
@@ -144,7 +144,7 @@ const Home = () => {
           priceCurrency: "IDR",
         },
         description:
-          "Aplikasi stok dapur dan inventaris rumah tangga untuk memantau bahan, masa simpan, rekomendasi masakan, dan daftar belanja keluarga.",
+          "Aplikasi gratis untuk memantau stok bahan, masa simpan, rekomendasi masakan, dan daftar belanja keluarga.",
         featureList: [
           "Pantau stok dapur dan inventaris rumah tangga",
           "Pengingat bahan yang mendekati masa simpan",
@@ -202,15 +202,15 @@ const Home = () => {
         <section className="container grid max-w-6xl gap-10 px-4 py-14 md:grid-cols-[1.1fr_0.9fr] md:py-20">
           <div className="space-y-7">
             <Badge className="rounded-full border border-primary/20 bg-primary/10 px-4 py-1 text-sm font-bold text-primary hover:bg-primary/10">
-              Aplikasi inventory rumah tangga untuk dapur yang lebih terkendali
+              Gratis dipakai untuk keluarga yang ingin stok rumah lebih rapi
             </Badge>
             <div className="space-y-4">
               <h1 className="max-w-3xl text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl md:text-6xl">
-                Aplikasi stok dapur yang bantu keluarga belanja lebih tepat, masak lebih tenang, dan mengurangi bahan terbuang.
+                Cek stok dapur, hindari belanja dobel, dan pakai bahan sebelum terbuang. Gratis.
               </h1>
               <p className="max-w-2xl text-lg leading-8 text-muted-foreground sm:text-xl">
-                {APP_NAME} membantu Anda melihat stok rumah dengan jelas, tahu bahan mana yang harus dipakai dulu,
-                mengelola daftar belanja keluarga, dan menyiapkan masakan dari bahan yang sudah tersedia.
+                {APP_NAME} membantu keluarga melihat isi rumah dengan jelas, tahu bahan mana yang harus dipakai dulu,
+                membuat daftar belanja dari kebutuhan nyata, dan menemukan ide masak dari stok yang sudah ada.
               </p>
             </div>
 
@@ -228,16 +228,16 @@ const Home = () => {
 
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-3xl border border-border/60 bg-card/80 p-4 shadow-sm">
-                <p className="text-sm font-extrabold">Stok selalu jelas</p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">Tidak perlu bongkar dapur dulu hanya untuk tahu apa yang masih ada.</p>
+                <p className="text-sm font-extrabold">100% gratis dipakai</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">Mulai atur stok rumah sekarang tanpa biaya di awal.</p>
               </div>
               <div className="rounded-3xl border border-border/60 bg-card/80 p-4 shadow-sm">
                 <p className="text-sm font-extrabold">Belanja lebih hemat</p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">Prioritaskan restock yang benar-benar dibutuhkan rumah hari ini.</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">Restock berdasarkan kebutuhan rumah, bukan perkiraan atau lupa.</p>
               </div>
               <div className="rounded-3xl border border-border/60 bg-card/80 p-4 shadow-sm">
-                <p className="text-sm font-extrabold">Masak lebih cepat</p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">Temukan ide menu dari bahan yang sudah tersedia di rumah.</p>
+                <p className="text-sm font-extrabold">Rumah lebih tenang</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">Satu keluarga bisa lihat stok dan daftar belanja yang sama.</p>
               </div>
             </div>
           </div>
@@ -248,7 +248,7 @@ const Home = () => {
               <div className="mb-5 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-bold text-muted-foreground">Ringkasan Rumah Hari Ini</p>
-                  <h2 className="text-2xl font-extrabold">Dapur lebih rapi, keputusan lebih cepat</h2>
+                  <h2 className="text-2xl font-extrabold">Semua yang perlu Anda tahu, langsung kelihatan</h2>
                 </div>
                 <Sparkles className="h-6 w-6 text-primary" />
               </div>
@@ -264,7 +264,7 @@ const Home = () => {
                       <BellRing className="h-9 w-9 text-primary" />
                     </div>
                     <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                      RumahQu menyorot bahan prioritas agar Anda bisa memasak sebelum terlambat.
+                      RumahQu menyorot bahan prioritas agar Anda bisa cepat memutuskan apa yang harus dimasak hari ini.
                     </p>
                   </CardContent>
                 </Card>
@@ -275,8 +275,8 @@ const Home = () => {
                       <div className="flex items-center gap-3">
                         <ShoppingCart className="h-8 w-8 text-primary" />
                         <div>
-                          <p className="font-extrabold">Daftar restock otomatis</p>
-                          <p className="text-sm text-muted-foreground">Belanja sesuai kebutuhan nyata.</p>
+                          <p className="font-extrabold">Daftar restock yang lebih masuk akal</p>
+                          <p className="text-sm text-muted-foreground">Belanja hanya yang memang perlu dibeli.</p>
                         </div>
                       </div>
                     </CardContent>
@@ -286,8 +286,8 @@ const Home = () => {
                       <div className="flex items-center gap-3">
                         <ChefHat className="h-8 w-8 text-primary" />
                         <div>
-                          <p className="font-extrabold">Ide menu dari stok</p>
-                          <p className="text-sm text-muted-foreground">Masak tanpa bingung mulai dari mana.</p>
+                          <p className="font-extrabold">Ide menu dari stok yang ada</p>
+                          <p className="text-sm text-muted-foreground">Masak lebih cepat tanpa bingung mulai dari mana.</p>
                         </div>
                       </div>
                     </CardContent>
@@ -299,9 +299,9 @@ const Home = () => {
                     <div className="flex items-start gap-3">
                       <Users className="mt-1 h-8 w-8 text-primary" />
                       <div>
-                        <p className="font-extrabold">Satu rumah, satu catatan yang sama</p>
+                        <p className="font-extrabold">Satu rumah, satu sumber informasi</p>
                         <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                          Pasangan dan anggota keluarga bisa ikut pantau stok dan daftar belanja tanpa saling miss komunikasi.
+                          Pasangan dan anggota keluarga bisa ikut pantau stok dan daftar belanja tanpa saling tanya berulang.
                         </p>
                       </div>
                     </div>
@@ -317,7 +317,7 @@ const Home = () => {
             <div className="max-w-2xl">
               <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-primary">Masalah yang sering terjadi di rumah</p>
               <h2 className="mt-3 text-3xl font-extrabold leading-tight">
-                Bukan karena Anda kurang teliti. Hanya saja semua urusan rumah menumpuk di kepala yang sama.
+                Bukan karena Anda kurang teliti. Masalahnya, semua stok rumah selama ini cuma disimpan di kepala.
               </h2>
             </div>
             <div className="mt-8 grid gap-4 md:grid-cols-3">
@@ -345,7 +345,7 @@ const Home = () => {
           <div className="max-w-2xl">
             <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-primary">Yang Anda dapatkan</p>
             <h2 className="mt-3 text-3xl font-extrabold leading-tight">
-              RumahQu membantu Anda mengatur stok rumah, daftar belanja, dan keputusan masak dengan cara yang terasa ringan.
+              RumahQu membantu rumah tangga terasa lebih rapi, lebih hemat, dan jauh lebih mudah dijalankan.
             </h2>
           </div>
           <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -368,14 +368,14 @@ const Home = () => {
         <section className="container max-w-6xl px-4 py-10 md:py-14">
           <div className="rounded-[2rem] border border-border/60 bg-card/85 p-6 shadow-sm md:p-8">
             <div className="max-w-3xl">
-              <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-primary">Kenapa halaman ini relevan</p>
+              <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-primary">Kenapa mulai dari sekarang</p>
               <h2 className="mt-3 text-3xl font-extrabold leading-tight">
-                Jika Anda mencari aplikasi inventory rumah tangga atau aplikasi stok dapur, RumahQu dirancang untuk kebutuhan itu.
+                Mulai dari aplikasi gratis yang langsung membantu, bukan menambah pekerjaan baru.
               </h2>
               <p className="mt-4 text-base leading-8 text-muted-foreground">
-                RumahQu menggabungkan pencatatan stok bahan makanan, pengingat masa simpan, daftar belanja rumah, dan rekomendasi menu
-                dalam satu alur yang mudah dipakai keluarga di Indonesia. Fokusnya bukan sekadar mencatat barang, tetapi membantu rumah
-                tangga belanja lebih hemat, mengurangi food waste, dan menjaga dapur tetap siap pakai setiap hari.
+                RumahQu dibuat untuk keluarga yang ingin isi rumah lebih mudah dipantau tanpa spreadsheet, catatan tercecer, atau tebakan.
+                Begitu stok rumah terlihat jelas, Anda bisa lebih cepat memutuskan apa yang perlu dibeli, apa yang harus dimasak, dan apa
+                yang sebaiknya dipakai lebih dulu.
               </p>
             </div>
           </div>
@@ -385,7 +385,7 @@ const Home = () => {
           <div className="rounded-[2rem] border border-border/60 bg-[linear-gradient(135deg,hsl(var(--primary)/0.08),hsl(36_30%_100%))] p-6 md:p-8">
             <div className="max-w-2xl">
               <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-primary">Cara kerja</p>
-              <h2 className="mt-3 text-3xl font-extrabold leading-tight">Mulai dalam 3 langkah sederhana.</h2>
+              <h2 className="mt-3 text-3xl font-extrabold leading-tight">Mulai pakai dalam 3 langkah sederhana.</h2>
             </div>
             <div className="mt-8 grid gap-4 md:grid-cols-3">
               {steps.map((step, index) => (
@@ -422,7 +422,7 @@ const Home = () => {
               <div>
                 <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-primary/80">Siap mulai?</p>
                 <h2 className="mt-3 text-3xl font-extrabold leading-tight">
-                  Saat stok rumah terlihat jelas, belanja jadi lebih hemat dan masak terasa jauh lebih ringan.
+                  Coba gratis hari ini, lalu rasakan sendiri betapa enaknya saat stok rumah selalu jelas.
                 </h2>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   <div className="flex items-start gap-2 text-sm text-background/80">
@@ -431,7 +431,7 @@ const Home = () => {
                   </div>
                   <div className="flex items-start gap-2 text-sm text-background/80">
                     <ClipboardList className="mt-0.5 h-5 w-5 text-primary" />
-                    <span>Siapkan daftar belanja yang benar-benar relevan.</span>
+                    <span>Mulai gratis untuk belanja yang lebih terarah.</span>
                   </div>
                 </div>
               </div>

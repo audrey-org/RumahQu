@@ -11,7 +11,7 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
-function createDashboardFetch(groupId = "group-1") {
+function createDashboardFetch(groupId = "group-1", role: "user" | "admin" = "user") {
   return async (input: string | URL | Request) => {
     const url = typeof input === "string" ? input : input.toString();
 
@@ -23,6 +23,7 @@ function createDashboardFetch(groupId = "group-1") {
           fullName: "Alice Rumah",
           avatarUrl: null,
           createdAt: "2026-03-28T00:00:00.000Z",
+          role,
         },
         csrfToken: "csrf-authenticated",
       });
@@ -193,7 +194,7 @@ describe("app routes", () => {
     render(<App />);
 
     expect(
-      await screen.findByText("Aplikasi stok dapur yang bantu keluarga belanja lebih tepat, masak lebih tenang, dan mengurangi bahan terbuang."),
+      await screen.findByText("Cek stok dapur, hindari belanja dobel, dan pakai bahan sebelum terbuang. Gratis."),
     ).toBeInTheDocument();
     expect(screen.getByText("Masalah yang sering terjadi di rumah")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Daftar Gratis" }).length).toBeGreaterThan(0);
@@ -262,6 +263,89 @@ describe("app routes", () => {
     expect(window.location.pathname).toBe("/app");
   });
 
+  it("redirects non-admin users away from /admin", async () => {
+    window.history.pushState({}, "", "/admin");
+    vi.spyOn(globalThis, "fetch").mockImplementation(createDashboardFetch());
+
+    render(<App />);
+
+    expect(await screen.findByText("Halo, Alice!")).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/app");
+  });
+
+  it("renders the admin dashboard for admin users", async () => {
+    window.history.pushState({}, "", "/admin");
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = typeof input === "string" ? input : input.toString();
+
+      if (url.endsWith("/api/auth/me")) {
+        return jsonResponse({
+          user: {
+            id: "admin-1",
+            email: "admin@example.com",
+            fullName: "Admin Rumah",
+            avatarUrl: null,
+            createdAt: "2026-03-28T00:00:00.000Z",
+            role: "admin",
+          },
+          csrfToken: "csrf-admin",
+        });
+      }
+
+      if (url.endsWith("/api/groups")) {
+        return jsonResponse({
+          groups: [],
+          pendingInvites: [],
+        });
+      }
+
+      if (url.endsWith("/api/admin/stats")) {
+        return jsonResponse({
+          totalUsers: 12,
+          verifiedUsers: 9,
+          dailySignups: Array.from({ length: 30 }, (_, index) => ({
+            date: `2026-03-${String(index + 1).padStart(2, "0")}`,
+            count: index === 29 ? 3 : 0,
+          })),
+        });
+      }
+
+      if (url.endsWith("/api/admin/users")) {
+        return jsonResponse({
+          users: [
+            {
+              id: "admin-1",
+              email: "admin@example.com",
+              fullName: "Admin Rumah",
+              role: "admin",
+              createdAt: "2026-03-28T00:00:00.000Z",
+              emailVerifiedAt: "2026-03-28T01:00:00.000Z",
+            },
+            {
+              id: "user-2",
+              email: "user@example.com",
+              fullName: "User Rumah",
+              role: "user",
+              createdAt: "2026-03-29T00:00:00.000Z",
+              emailVerifiedAt: null,
+            },
+          ],
+        });
+      }
+
+      return jsonResponse({ error: { code: "NOT_FOUND", message: `Unhandled request: ${url}` } }, 404);
+    });
+
+    render(<App />);
+
+    expect(await screen.findByText("Admin Dashboard")).toBeInTheDocument();
+    expect(screen.getByText("Signup Harian 30 Hari Terakhir")).toBeInTheDocument();
+    expect(screen.getByText("Daftar User")).toBeInTheDocument();
+    expect(await screen.findByText("Admin Rumah")).toBeInTheDocument();
+    expect(screen.getByText("user@example.com")).toBeInTheDocument();
+  });
+
   it("opens the register tab from the homepage CTA", async () => {
     window.history.pushState({}, "", "/");
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
@@ -312,6 +396,7 @@ describe("app routes", () => {
             fullName: "Alice Rumah",
             avatarUrl: null,
             createdAt: "2026-03-28T00:00:00.000Z",
+            role: "user",
           },
           csrfToken: "csrf-authenticated",
         });
@@ -432,6 +517,7 @@ describe("app routes", () => {
             fullName: "Alice Rumah",
             avatarUrl: null,
             createdAt: "2026-03-28T00:00:00.000Z",
+            role: "user",
           },
           csrfToken: "csrf-authenticated",
         });

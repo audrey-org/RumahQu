@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Package, ClipboardList, Users } from "lucide-react";
+import { Package, ClipboardList, Shield, Users } from "lucide-react";
 import { getExpiryStatus } from "@/lib/inventory";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGroup } from "@/contexts/GroupContext";
@@ -79,6 +79,11 @@ const Index = () => {
           </div>
           <div className="hidden items-center gap-2 md:flex">
             <AddItemDialog onAdded={() => void inventoryQuery.refetch()} groupId={activeGroup?.id} />
+            {user?.role === "admin" && (
+              <Button variant="outline" size="icon" onClick={() => navigate("/admin")} className="rounded-full" title="Dashboard Admin">
+                <Shield className="h-4 w-4" />
+              </Button>
+            )}
             <Button variant="outline" size="icon" onClick={() => navigate("/inventory")} className="rounded-full" title="Lihat Inventory">
               <ClipboardList className="h-4 w-4" />
             </Button>

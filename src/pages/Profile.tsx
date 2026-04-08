@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, User, Save } from "lucide-react";
+import { ArrowLeft, Save, Shield, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -92,6 +92,25 @@ const Profile = () => {
             </Button>
           </CardContent>
         </Card>
+
+        {user.role === "admin" && (
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg font-bold">
+                <Shield className="h-4 w-4 text-primary" />
+                Area Admin
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Buka dashboard admin untuk melihat statistik user dan daftar akun secara read-only.
+              </p>
+              <Button onClick={() => navigate("/admin")} className="w-full font-bold gap-2">
+                <Shield className="h-4 w-4" /> Buka Dashboard Admin
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         <Button variant="outline" onClick={() => void handleSignOut()} className="w-full font-bold text-destructive border-destructive/30 hover:bg-destructive/10">
           Keluar

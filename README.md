@@ -247,7 +247,27 @@ src/
 - `POST /api/inventory`
 - `PATCH /api/inventory/:itemId`
 - `DELETE /api/inventory/:itemId`
+- `GET /api/admin/stats`
+- `GET /api/admin/users`
 - `GET /api/health`
+
+## Bootstrap admin awal
+
+Role global admin dipakai untuk membuka area `/admin` dan endpoint `/api/admin/*`. Untuk v1, promosi admin dilakukan manual di database:
+
+```sql
+UPDATE users
+SET role = 'admin'
+WHERE email_normalized = 'admin@example.com';
+```
+
+Verifikasi hasilnya:
+
+```sql
+SELECT email, role
+FROM users
+WHERE role = 'admin';
+```
 
 ## Backup dan restore Postgres
 

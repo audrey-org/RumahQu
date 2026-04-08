@@ -20,6 +20,7 @@ type SessionRow = {
   full_name: string;
   avatar_url: string | null;
   created_at: Date;
+  role: SessionUser["role"];
   session_expires_at: Date;
   csrf_token: string;
 };
@@ -132,6 +133,7 @@ function mapSessionRow(row: SessionRow): SessionContext {
       fullName: row.full_name,
       avatarUrl: row.avatar_url,
       createdAt: row.created_at.toISOString(),
+      role: row.role,
     },
   };
 }
@@ -148,7 +150,8 @@ export async function getSessionFromToken(client: PoolClient, rawToken: string) 
         u.email,
         u.full_name,
         u.avatar_url,
-        u.created_at
+        u.created_at,
+        u.role
       FROM sessions s
       JOIN users u ON u.id = s.user_id
       WHERE s.token_hash = $1

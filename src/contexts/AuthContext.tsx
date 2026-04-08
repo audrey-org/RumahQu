@@ -106,6 +106,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     const session = await api.logout();
     queryClient.setQueryData(queryKeys.session, session);
+    queryClient.removeQueries({ queryKey: queryKeys.adminStats });
+    queryClient.removeQueries({ queryKey: queryKeys.adminUsers });
     queryClient.removeQueries({ queryKey: queryKeys.groups });
     queryClient.removeQueries({ queryKey: ["inventory"] });
     queryClient.removeQueries({ queryKey: ["meal-recommendations"] });

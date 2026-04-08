@@ -1,5 +1,7 @@
 import type {
   AddMissingIngredientsResponse,
+  AdminStatsResponse,
+  AdminUsersResponse,
   ApiError,
   AuthResponse,
   CreateShoppingListItemInput,
@@ -183,6 +185,12 @@ export const api = {
       method: "PATCH",
       body: input,
     });
+  },
+  getAdminStats() {
+    return request<AdminStatsResponse>("/api/admin/stats");
+  },
+  getAdminUsers() {
+    return request<AdminUsersResponse>("/api/admin/users");
   },
   getGroups() {
     return request<GroupsResponse>("/api/groups");

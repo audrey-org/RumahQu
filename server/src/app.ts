@@ -9,6 +9,9 @@ import { z } from "zod";
 import { verify as verifyPassword, hash as hashPassword, Algorithm } from "@node-rs/argon2";
 import type {
   AddMissingIngredientsResponse,
+  AdminStatsResponse,
+  AdminUserSummary,
+  AdminUsersResponse,
   AuthResponse,
   GroupMember,
   GroupSummary,
@@ -71,8 +74,28 @@ type UserRow = {
   full_name: string;
   avatar_url: string | null;
   created_at: Date;
+  role: SessionUser["role"];
   password_hash: string;
   email_verified_at: Date | null;
+};
+
+type AdminUserRow = {
+  id: string;
+  email: string;
+  full_name: string;
+  role: SessionUser["role"];
+  created_at: Date;
+  email_verified_at: Date | null;
+};
+
+type AdminUserCountsRow = {
+  total_users: string | number;
+  verified_users: string | number;
+};
+
+type DailySignupRow = {
+  signup_date: string | Date;
+  signup_count: string | number;
 };
 
 type GroupRow = {
@@ -161,7 +184,7 @@ const frontendDistDirectory =
   frontendDistCandidates.find((candidate) => fs.existsSync(path.join(candidate, "index.html"))) ??
   frontendDistCandidates[0];
 const frontendIndexFile = path.join(frontendDistDirectory, "index.html");
-const noIndexSpaPaths = new Set(["/auth", "/app", "/inventory", "/meal-recommendations", "/groups", "/profile"]);
+const noIndexSpaPaths = new Set(["/auth", "/app", "/inventory", "/meal-recommendations", "/groups", "/profile", "/admin"]);
 
 const registerSchema = z.object({
   email: z.string().trim().email(),
@@ -325,6 +348,18 @@ function toSessionUser(row: UserRow): SessionUser {
     fullName: row.full_name,
     avatarUrl: row.avatar_url,
     createdAt: row.created_at.toISOString(),
+    role: row.role,
+  };
+}
+
+function toAdminUserSummary(row: AdminUserRow): AdminUserSummary {
+  return {
+    id: row.id,
+    email: row.email,
+    fullName: row.full_name,
+    role: row.role,
+    createdAt: row.created_at.toISOString(),
+    emailVerifiedAt: row.email_verified_at?.toISOString() ?? null,
   };
 }
 
@@ -740,6 +775,16 @@ async function requireAuth(req: Request) {
   return auth.user;
 }
 
+async function requireAdmin(req: Request) {
+  const user = await requireAuth(req);
+
+  if (user.role !== "admin") {
+    throw new AppError(403, "FORBIDDEN", "Anda tidak memiliki akses admin");
+  }
+
+  return user;
+}
+
 function requireCsrf(req: Request) {
   if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
     return;
@@ -1121,6 +1166,7 @@ export function createApp() {
               u.full_name,
               u.avatar_url,
               u.created_at,
+              u.role,
               u.password_hash,
               u.email_verified_at
             FROM email_verification_tokens evt
@@ -1146,7 +1192,7 @@ export function createApp() {
             UPDATE users
             SET email_verified_at = COALESCE(email_verified_at, now())
             WHERE id = $1
-            RETURNING id, email, full_name, avatar_url, created_at, password_hash, email_verified_at
+            RETURNING id, email, full_name, avatar_url, created_at, role, password_hash, email_verified_at
           `,
           [tokenRow.user_id],
         );
@@ -1184,7 +1230,7 @@ export function createApp() {
       const response = await withTransaction(async (client) => {
         const userResult = await client.query<UserRow>(
           `
-            SELECT id, email, full_name, avatar_url, created_at, password_hash, email_verified_at
+            SELECT id, email, full_name, avatar_url, created_at, role, password_hash, email_verified_at
             FROM users
             WHERE email_normalized = $1
           `,
@@ -1313,7 +1359,7 @@ export function createApp() {
           SET full_name = $2,
               avatar_url = $3
           WHERE id = $1
-          RETURNING id, email, full_name, avatar_url, created_at, password_hash
+          RETURNING id, email, full_name, avatar_url, created_at, role, password_hash, email_verified_at
         `,
         [user.id, input.fullName, input.avatarUrl ?? null],
       );
@@ -1321,6 +1367,90 @@ export function createApp() {
       const updatedUser = toSessionUser(result.rows[0]);
       const authContext = getAuth(req);
       res.json(await buildAuthResponse(updatedUser, authContext.csrfToken));
+    }),
+  );
+
+  app.get(
+    "/api/admin/stats",
+    asyncHandler(async (req, res) => {
+      await requireAdmin(req);
+
+      const [countsResult, dailySignupsResult] = await Promise.all([
+        query<AdminUserCountsRow>(
+          `
+            SELECT
+              COUNT(*)::int AS total_users,
+              COUNT(*) FILTER (WHERE email_verified_at IS NOT NULL)::int AS verified_users
+            FROM users
+          `,
+        ),
+        query<DailySignupRow>(
+          `
+            SELECT
+              day_series.signup_date,
+              COALESCE(signups.signup_count, 0)::int AS signup_count
+            FROM (
+              SELECT generate_series(
+                current_date - interval '29 days',
+                current_date,
+                interval '1 day'
+              )::date AS signup_date
+            ) day_series
+            LEFT JOIN (
+              SELECT
+                DATE(created_at) AS signup_date,
+                COUNT(*)::int AS signup_count
+              FROM users
+              WHERE created_at >= current_date - interval '29 days'
+              GROUP BY DATE(created_at)
+            ) signups
+              ON signups.signup_date = day_series.signup_date
+            ORDER BY day_series.signup_date ASC
+          `,
+        ),
+      ]);
+
+      const counts = countsResult.rows[0];
+      const payload: AdminStatsResponse = {
+        totalUsers: Number(counts.total_users),
+        verifiedUsers: Number(counts.verified_users),
+        dailySignups: dailySignupsResult.rows.map((row) => ({
+          date:
+            row.signup_date instanceof Date
+              ? row.signup_date.toISOString().slice(0, 10)
+              : String(row.signup_date),
+          count: Number(row.signup_count),
+        })),
+      };
+
+      res.json(payload);
+    }),
+  );
+
+  app.get(
+    "/api/admin/users",
+    asyncHandler(async (req, res) => {
+      await requireAdmin(req);
+
+      const result = await query<AdminUserRow>(
+        `
+          SELECT
+            id,
+            email,
+            full_name,
+            role,
+            created_at,
+            email_verified_at
+          FROM users
+          ORDER BY created_at DESC, email ASC
+        `,
+      );
+
+      const payload: AdminUsersResponse = {
+        users: result.rows.map(toAdminUserSummary),
+      };
+
+      res.json(payload);
     }),
   );
 
@@ -1405,7 +1535,7 @@ export function createApp() {
       const invite = await withTransaction(async (client) => {
         const targetResult = await client.query<UserRow>(
           `
-            SELECT id, email, full_name, avatar_url, created_at, password_hash
+            SELECT id, email, full_name, avatar_url, created_at, role, password_hash, email_verified_at
             FROM users
             WHERE email_normalized = $1
           `,

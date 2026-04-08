@@ -9,6 +9,7 @@ const describeIfDatabase = hasTestDatabase ? describe : describe.skip;
 let app: Express;
 let resetDatabaseForTests: typeof import("../src/db/migrate.js")["resetDatabaseForTests"];
 let closePool: typeof import("../src/db/pool.js")["closePool"];
+let dbQuery: typeof import("../src/db/pool.js")["query"];
 
 function isoDateFromToday(offsetDays: number) {
   const date = new Date();
@@ -57,6 +58,10 @@ async function registerAndVerifyUser(
   return sessionResponse.body.user as { id: string; email: string; fullName: string };
 }
 
+async function promoteToAdmin(userId: string) {
+  await dbQuery("UPDATE users SET role = 'admin' WHERE id = $1", [userId]);
+}
+
 describeIfDatabase("RumahQu API", () => {
   beforeAll(async () => {
     process.env.NODE_ENV = "test";
@@ -72,6 +77,7 @@ describeIfDatabase("RumahQu API", () => {
     await dbModule.runMigrations();
     resetDatabaseForTests = dbModule.resetDatabaseForTests;
     closePool = poolModule.closePool;
+    dbQuery = poolModule.query;
     app = appModule.createApp();
   });
 
@@ -102,6 +108,24 @@ describeIfDatabase("RumahQu API", () => {
     expect(groupsResponse.body.groups[0]).toMatchObject({
       role: "owner",
       memberCount: 1,
+    });
+  });
+
+  it("includes the global app role in the session response", async () => {
+    const agent = request.agent(app);
+    const user = await registerAndVerifyUser(agent, {
+      email: "role-session@example.com",
+      password: "hunter22",
+      fullName: "Role Session",
+    });
+
+    await promoteToAdmin(user.id);
+
+    const sessionResponse = await agent.get("/api/auth/me");
+    expect(sessionResponse.status).toBe(200);
+    expect(sessionResponse.body.user).toMatchObject({
+      email: "role-session@example.com",
+      role: "admin",
     });
   });
 
@@ -450,6 +474,54 @@ describeIfDatabase("RumahQu API", () => {
         reason: "already-in-shopping-list",
       },
     ]);
+  });
+
+  it("restricts admin statistics endpoints to admin users and returns safe user fields", async () => {
+    const adminAgent = request.agent(app);
+    const memberAgent = request.agent(app);
+
+    const adminUser = await registerAndVerifyUser(adminAgent, {
+      email: "admin@example.com",
+      password: "hunter22",
+      fullName: "Admin Rumah",
+    });
+    await promoteToAdmin(adminUser.id);
+
+    await registerAndVerifyUser(memberAgent, {
+      email: "member@example.com",
+      password: "hunter22",
+      fullName: "Member Rumah",
+    });
+
+    const forbiddenStatsResponse = await memberAgent.get("/api/admin/stats");
+    expect(forbiddenStatsResponse.status).toBe(403);
+    expect(forbiddenStatsResponse.body.error.code).toBe("FORBIDDEN");
+
+    const forbiddenUsersResponse = await memberAgent.get("/api/admin/users");
+    expect(forbiddenUsersResponse.status).toBe(403);
+    expect(forbiddenUsersResponse.body.error.code).toBe("FORBIDDEN");
+
+    const adminStatsResponse = await adminAgent.get("/api/admin/stats");
+    expect(adminStatsResponse.status).toBe(200);
+    expect(adminStatsResponse.body.totalUsers).toBe(2);
+    expect(adminStatsResponse.body.verifiedUsers).toBe(2);
+    expect(adminStatsResponse.body.dailySignups).toHaveLength(30);
+    expect(adminStatsResponse.body.dailySignups.at(-1)?.count).toBe(2);
+
+    const adminUsersResponse = await adminAgent.get("/api/admin/users");
+    expect(adminUsersResponse.status).toBe(200);
+    expect(adminUsersResponse.body.users).toHaveLength(2);
+    expect(adminUsersResponse.body.users[0]).toMatchObject({
+      email: "member@example.com",
+      role: "user",
+    });
+    expect(adminUsersResponse.body.users[1]).toMatchObject({
+      email: "admin@example.com",
+      role: "admin",
+      emailVerifiedAt: expect.any(String),
+    });
+    expect(adminUsersResponse.body.users[0].passwordHash).toBeUndefined();
+    expect(adminUsersResponse.body.users[0].password_hash).toBeUndefined();
   });
 
   it("prevents owners from leaving their own group", async () => {

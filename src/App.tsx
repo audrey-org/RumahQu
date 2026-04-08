@@ -15,6 +15,7 @@ import Profile from "./pages/Profile";
 import Inventory from "./pages/Inventory";
 import Groups from "./pages/Groups";
 import MealRecommendations from "./pages/MealRecommendations";
+import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -30,6 +31,16 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
     return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">Memuat...</div>;
   }
   if (user) return <Navigate to="/app" replace />;
+  return <>{children}</>;
+}
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">Memuat...</div>;
+  }
+  if (!user) return <Navigate to="/auth" replace />;
+  if (user.role !== "admin") return <Navigate to="/app" replace />;
   return <>{children}</>;
 }
 
@@ -59,6 +70,7 @@ const App = () => {
                   <Route path="/meal-recommendations" element={<ProtectedRoute><MealRecommendations /></ProtectedRoute>} />
                   <Route path="/groups" element={<ProtectedRoute><Groups /></ProtectedRoute>} />
                   <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                  <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
                   <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
