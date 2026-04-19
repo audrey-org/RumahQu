@@ -39,6 +39,7 @@ describe("runtime compatibility", () => {
   it("detects Threads and X style in-app browsers", () => {
     expect(isInAppBrowser("Mozilla/5.0 Threads/382.0")).toBe(true);
     expect(isInAppBrowser("Mozilla/5.0 TwitterAndroid")).toBe(true);
+    expect(isInAppBrowser("Mozilla/5.0 WhatsApp/2.24.9.78 Mobile")).toBe(true);
     expect(isInAppBrowser("Mozilla/5.0 Chrome/135.0.0.0 Safari/537.36")).toBe(false);
   });
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { GroupProvider } from "@/contexts/GroupContext";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { AppErrorBoundary } from "@/components/AppErrorBoundary";
+import { registerAppServiceWorker } from "@/lib/browser-notifications";
 import Home from "./pages/Home";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -53,6 +54,15 @@ const App = () => {
       },
     },
   }));
+
+  useEffect(() => {
+    if (typeof document !== "undefined" && typeof window !== "undefined") {
+      document.documentElement.setAttribute("data-rumahqu-mounted", "true");
+      window.dispatchEvent(new Event("rumahqu:mounted"));
+    }
+
+    void registerAppServiceWorker();
+  }, []);
 
   return (
     <AppErrorBoundary>

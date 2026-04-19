@@ -5,6 +5,7 @@ const IN_APP_BROWSER_PATTERNS = [
   /\bFBAV\b/i,
   /\bFB_IAB\b/i,
   /Twitter/i,
+  /\bWhatsApp\b/i,
   /\bLine\//i,
   /LinkedInApp/i,
 ];

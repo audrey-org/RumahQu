@@ -102,6 +102,7 @@
         var mountedAttr = "data-rumahqu-mounted";
         var fallbackId = "boot-fallback";
         var rootId = "root";
+        var inAppBrowserPattern = /(Threads|Instagram|\bFBAN\b|\bFBAV\b|\bFB_IAB\b|Twitter|\bWhatsApp\b|\bLine\/|LinkedInApp)/i;
 
         function isMounted() {
           return document.documentElement.getAttribute(mountedAttr) === "true";
@@ -148,7 +149,8 @@
           window.setTimeout(showFallback, 0);
         }
 
-        var timeoutId = window.setTimeout(showFallback, 4000);
+        var bootTimeout = inAppBrowserPattern.test(window.navigator.userAgent || "") ? 1500 : 4000;
+        var timeoutId = window.setTimeout(showFallback, bootTimeout);
 
         window.addEventListener("error", handleBootError);
         window.addEventListener("unhandledrejection", handleBootError);
