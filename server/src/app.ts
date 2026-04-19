@@ -14,11 +14,14 @@ import type {
   AdminUsersResponse,
   AuthResponse,
   GroupMember,
+  InventoryAdjustment,
   GroupSummary,
   InventoryItem,
+  InventoryAdjustmentsResponse,
   MealRecommendationsResponse,
   PasswordResetEmailResponse,
   PasswordResetResponse,
+  RestockSuggestionResponse,
   ShoppingListItem,
   PendingInvite,
   RegisterResponse,
@@ -134,10 +137,26 @@ type InventoryRow = {
   category: string;
   quantity: number;
   unit: string;
+  low_stock_threshold: number | null;
+  restock_target_quantity: number | null;
   expiration_date: string | Date;
   notes: string | null;
   created_at: Date;
   updated_at: Date;
+};
+
+type InventoryAdjustmentRow = {
+  id: string;
+  item_id: string;
+  group_id: string;
+  adjusted_by: string | null;
+  adjusted_by_name: string | null;
+  type: InventoryAdjustment["type"];
+  delta: number;
+  quantity_before: number;
+  quantity_after: number;
+  reason: string | null;
+  created_at: Date;
 };
 
 type ShoppingListRow = {
@@ -227,23 +246,57 @@ const createInventoryItemSchema = z.object({
   groupId: z.string().uuid(),
   name: z.string().trim().min(1).max(120),
   category: z.string().trim().min(1).max(120),
-  quantity: z.number().int().positive(),
+  quantity: z.number().int().nonnegative(),
   unit: z.string().trim().min(1).max(40),
+  lowStockThreshold: z.number().int().nonnegative().nullable().optional(),
+  restockTargetQuantity: z.number().int().nonnegative().nullable().optional(),
   expirationDate: z.string().trim().min(1),
   notes: z.string().trim().max(500).optional(),
+}).superRefine((value, context) => {
+  if (
+    value.lowStockThreshold !== undefined &&
+    value.lowStockThreshold !== null &&
+    value.restockTargetQuantity !== undefined &&
+    value.restockTargetQuantity !== null &&
+    value.restockTargetQuantity <= value.lowStockThreshold
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["restockTargetQuantity"],
+      message: "Target restock harus lebih besar dari batas stok rendah",
+    });
+  }
 });
 
 const updateInventoryItemSchema = z
   .object({
     name: z.string().trim().min(1).max(120).optional(),
     category: z.string().trim().min(1).max(120).optional(),
-    quantity: z.number().int().positive().optional(),
+    quantity: z.number().int().nonnegative().optional(),
     unit: z.string().trim().min(1).max(40).optional(),
+    lowStockThreshold: z.number().int().nonnegative().nullable().optional(),
+    restockTargetQuantity: z.number().int().nonnegative().nullable().optional(),
     expirationDate: z.string().trim().min(1).optional(),
     notes: z.string().trim().max(500).nullable().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, {
     message: "At least one field must be updated",
+  });
+
+const adjustInventoryStockSchema = z
+  .object({
+    type: z.enum(["add", "use", "set"]),
+    quantity: z.number().int().nonnegative(),
+    reason: z.string().trim().max(500).optional(),
+  })
+  .superRefine((value, context) => {
+    if ((value.type === "add" || value.type === "use") && value.quantity <= 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["quantity"],
+        message: "Jumlah harus lebih dari 0",
+      });
+    }
   });
 
 const createShoppingListItemSchema = z.object({
@@ -421,10 +474,28 @@ function toInventoryItem(row: InventoryRow): InventoryItem {
     category: row.category,
     quantity: row.quantity,
     unit: row.unit,
+    lowStockThreshold: row.low_stock_threshold,
+    restockTargetQuantity: row.restock_target_quantity,
     expirationDate,
     notes: row.notes,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+  };
+}
+
+function toInventoryAdjustment(row: InventoryAdjustmentRow): InventoryAdjustment {
+  return {
+    id: row.id,
+    itemId: row.item_id,
+    groupId: row.group_id,
+    adjustedBy: row.adjusted_by,
+    adjustedByName: row.adjusted_by_name,
+    type: row.type,
+    delta: row.delta,
+    quantityBefore: row.quantity_before,
+    quantityAfter: row.quantity_after,
+    reason: row.reason,
+    createdAt: row.created_at.toISOString(),
   };
 }
 
@@ -465,6 +536,16 @@ function parseBody<T>(schema: z.ZodSchema<T>, body: unknown) {
   }
 
   return parsed.data;
+}
+
+function assertValidRestockSettings(lowStockThreshold: number | null, restockTargetQuantity: number | null) {
+  if (
+    lowStockThreshold !== null &&
+    restockTargetQuantity !== null &&
+    restockTargetQuantity <= lowStockThreshold
+  ) {
+    throw new AppError(400, "VALIDATION_ERROR", "Target restock harus lebih besar dari batas stok rendah");
+  }
 }
 
 function asyncHandler(
@@ -576,6 +657,8 @@ async function fetchInventoryItem(itemId: string) {
         i.category,
         i.quantity,
         i.unit,
+        i.low_stock_threshold,
+        i.restock_target_quantity,
         i.expiration_date,
         i.notes,
         i.created_at,
@@ -602,6 +685,8 @@ async function fetchInventoryByGroup(groupId: string) {
         i.category,
         i.quantity,
         i.unit,
+        i.low_stock_threshold,
+        i.restock_target_quantity,
         i.expiration_date,
         i.notes,
         i.created_at,
@@ -1994,6 +2079,7 @@ export function createApp() {
       const user = await requireAuth(req);
       const input = parseBody(createInventoryItemSchema, req.body);
       await assertGroupMember(input.groupId, user.id);
+      assertValidRestockSettings(input.lowStockThreshold ?? null, input.restockTargetQuantity ?? null);
 
       const result = await query<InventoryRow>(
         `
@@ -2004,10 +2090,12 @@ export function createApp() {
             category,
             quantity,
             unit,
+            low_stock_threshold,
+            restock_target_quantity,
             expiration_date,
             notes
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           RETURNING
             id,
             group_id,
@@ -2017,6 +2105,8 @@ export function createApp() {
             category,
             quantity,
             unit,
+            low_stock_threshold,
+            restock_target_quantity,
             expiration_date,
             notes,
             created_at,
@@ -2029,6 +2119,8 @@ export function createApp() {
           input.category,
           input.quantity,
           input.unit,
+          input.lowStockThreshold ?? null,
+          input.restockTargetQuantity ?? null,
           normalizeExpirationDate(input.expirationDate),
           input.notes ?? null,
         ],
@@ -2057,12 +2149,17 @@ export function createApp() {
       const nextCategory = input.category ?? item.category;
       const nextQuantity = input.quantity ?? item.quantity;
       const nextUnit = input.unit ?? item.unit;
+      const nextLowStockThreshold =
+        input.lowStockThreshold === undefined ? item.low_stock_threshold : input.lowStockThreshold;
+      const nextRestockTargetQuantity =
+        input.restockTargetQuantity === undefined ? item.restock_target_quantity : input.restockTargetQuantity;
       const nextExpirationDate = input.expirationDate
         ? normalizeExpirationDate(input.expirationDate)
         : item.expiration_date instanceof Date
           ? item.expiration_date.toISOString().slice(0, 10)
           : item.expiration_date;
       const nextNotes = input.notes === undefined ? item.notes : input.notes;
+      assertValidRestockSettings(nextLowStockThreshold, nextRestockTargetQuantity);
 
       const result = await query<InventoryRow>(
         `
@@ -2071,8 +2168,10 @@ export function createApp() {
               category = $3,
               quantity = $4,
               unit = $5,
-              expiration_date = $6,
-              notes = $7
+              low_stock_threshold = $6,
+              restock_target_quantity = $7,
+              expiration_date = $8,
+              notes = $9
           WHERE id = $1
           RETURNING
             id,
@@ -2083,15 +2182,263 @@ export function createApp() {
             category,
             quantity,
             unit,
+            low_stock_threshold,
+            restock_target_quantity,
             expiration_date,
             notes,
             created_at,
             updated_at
         `,
-        [itemId, nextName, nextCategory, nextQuantity, nextUnit, nextExpirationDate, nextNotes],
+        [
+          itemId,
+          nextName,
+          nextCategory,
+          nextQuantity,
+          nextUnit,
+          nextLowStockThreshold,
+          nextRestockTargetQuantity,
+          nextExpirationDate,
+          nextNotes,
+        ],
       );
 
       res.json(toInventoryItem(result.rows[0]));
+    }),
+  );
+
+  app.get(
+    "/api/inventory/:itemId/adjustments",
+    asyncHandler(async (req, res) => {
+      const user = await requireAuth(req);
+      const itemId = getRouteParam(req.params.itemId, "itemId");
+      const item = await fetchInventoryItem(itemId);
+
+      if (!item) {
+        throw new AppError(404, "ITEM_NOT_FOUND", "Barang tidak ditemukan");
+      }
+
+      await assertGroupMember(item.group_id, user.id);
+
+      const result = await query<InventoryAdjustmentRow>(
+        `
+          SELECT
+            a.id,
+            a.item_id,
+            a.group_id,
+            a.adjusted_by,
+            actor.full_name AS adjusted_by_name,
+            a.type,
+            a.delta,
+            a.quantity_before,
+            a.quantity_after,
+            a.reason,
+            a.created_at
+          FROM inventory_adjustments a
+          LEFT JOIN users actor ON actor.id = a.adjusted_by
+          WHERE a.item_id = $1
+          ORDER BY a.created_at DESC
+          LIMIT 20
+        `,
+        [itemId],
+      );
+
+      const payload: InventoryAdjustmentsResponse = {
+        adjustments: result.rows.map(toInventoryAdjustment),
+      };
+
+      res.json(payload);
+    }),
+  );
+
+  app.post(
+    "/api/inventory/:itemId/adjustments",
+    asyncHandler(async (req, res) => {
+      requireCsrf(req);
+      const user = await requireAuth(req);
+      const itemId = getRouteParam(req.params.itemId, "itemId");
+      const input = parseBody(adjustInventoryStockSchema, req.body);
+
+      const updatedItem = await withTransaction(async (client) => {
+        const itemResult = await client.query<InventoryRow>(
+          `
+            SELECT
+              i.id,
+              i.group_id,
+              i.added_by,
+              creator.full_name AS added_by_name,
+              i.name,
+              i.category,
+              i.quantity,
+              i.unit,
+              i.low_stock_threshold,
+              i.restock_target_quantity,
+              i.expiration_date,
+              i.notes,
+              i.created_at,
+              i.updated_at
+            FROM inventory_items i
+            LEFT JOIN users creator ON creator.id = i.added_by
+            WHERE i.id = $1
+            FOR UPDATE
+          `,
+          [itemId],
+        );
+        const item = itemResult.rows[0];
+
+        if (!item) {
+          throw new AppError(404, "ITEM_NOT_FOUND", "Barang tidak ditemukan");
+        }
+
+        await assertGroupMember(item.group_id, user.id);
+
+        const quantityBefore = item.quantity;
+        const quantityAfter =
+          input.type === "add"
+            ? quantityBefore + input.quantity
+            : input.type === "use"
+              ? quantityBefore - input.quantity
+              : input.quantity;
+
+        if (quantityAfter < 0) {
+          throw new AppError(400, "NEGATIVE_STOCK", "Stok tidak boleh kurang dari 0");
+        }
+
+        const delta = quantityAfter - quantityBefore;
+
+        const updateResult = await client.query<InventoryRow>(
+          `
+            UPDATE inventory_items
+            SET quantity = $2
+            WHERE id = $1
+            RETURNING
+              id,
+              group_id,
+              added_by,
+              NULL::text AS added_by_name,
+              name,
+              category,
+              quantity,
+              unit,
+              low_stock_threshold,
+              restock_target_quantity,
+              expiration_date,
+              notes,
+              created_at,
+              updated_at
+          `,
+          [itemId, quantityAfter],
+        );
+
+        await client.query(
+          `
+            INSERT INTO inventory_adjustments (
+              item_id,
+              group_id,
+              adjusted_by,
+              type,
+              delta,
+              quantity_before,
+              quantity_after,
+              reason
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          `,
+          [
+            itemId,
+            item.group_id,
+            user.id,
+            input.type,
+            delta,
+            quantityBefore,
+            quantityAfter,
+            input.reason ?? null,
+          ],
+        );
+
+        return updateResult.rows[0];
+      });
+
+      res.json(toInventoryItem(updatedItem));
+    }),
+  );
+
+  app.post(
+    "/api/inventory/:itemId/restock-suggestion",
+    asyncHandler(async (req, res) => {
+      requireCsrf(req);
+      const user = await requireAuth(req);
+      const itemId = getRouteParam(req.params.itemId, "itemId");
+      const item = await fetchInventoryItem(itemId);
+
+      if (!item) {
+        throw new AppError(404, "ITEM_NOT_FOUND", "Barang tidak ditemukan");
+      }
+
+      await assertGroupMember(item.group_id, user.id);
+
+      if (item.low_stock_threshold === null || item.restock_target_quantity === null) {
+        throw new AppError(400, "RESTOCK_TARGET_REQUIRED", "Target restock belum diatur untuk barang ini");
+      }
+
+      if (item.quantity > item.low_stock_threshold) {
+        throw new AppError(400, "ITEM_NOT_LOW_STOCK", "Stok barang belum melewati batas rendah");
+      }
+
+      const existingShoppingItems = await fetchShoppingListByGroup(item.group_id);
+      const itemKey = `${normalizeCatalogText(item.name)}::${normalizeCatalogText(item.category)}`;
+      const existingActiveItem = existingShoppingItems.find(
+        (shoppingItem) =>
+          !shoppingItem.is_purchased &&
+          `${normalizeCatalogText(shoppingItem.name)}::${normalizeCatalogText(shoppingItem.category)}` === itemKey,
+      );
+
+      if (existingActiveItem) {
+        const payload: RestockSuggestionResponse = {
+          status: "already-in-shopping-list",
+          shoppingListItem: toShoppingListItem(existingActiveItem),
+        };
+        res.json(payload);
+        return;
+      }
+
+      const suggestedQuantity = item.restock_target_quantity - item.quantity;
+
+      if (suggestedQuantity <= 0) {
+        throw new AppError(400, "INVALID_RESTOCK_TARGET", "Target restock harus lebih besar dari stok saat ini");
+      }
+
+      const inserted = await query<{ id: string }>(
+        `
+          INSERT INTO shopping_list_items (
+            group_id,
+            created_by,
+            name,
+            category,
+            quantity,
+            unit,
+            notes
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          RETURNING id
+        `,
+        [
+          item.group_id,
+          user.id,
+          item.name,
+          item.category,
+          suggestedQuantity,
+          item.unit,
+          `Restock dari stok rendah: ${item.quantity} ${item.unit}`,
+        ],
+      );
+
+      const shoppingListItem = await fetchShoppingListItem(inserted.rows[0].id);
+      const payload: RestockSuggestionResponse = {
+        status: "added",
+        shoppingListItem: toShoppingListItem(shoppingListItem!),
+      };
+
+      res.status(201).json(payload);
     }),
   );
 

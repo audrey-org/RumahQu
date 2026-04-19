@@ -28,6 +28,12 @@ export const getExpiringSoonItems = (items: InventoryItem[]) =>
     .filter((item) => getExpiryStatus(item.expirationDate) === "expiring-soon")
     .sort((a, b) => parseExpiryDate(a.expirationDate).getTime() - parseExpiryDate(b.expirationDate).getTime());
 
+export const isLowStock = (item: InventoryItem) =>
+  item.lowStockThreshold !== null && item.quantity <= item.lowStockThreshold;
+
+export const canSuggestRestock = (item: InventoryItem) =>
+  isLowStock(item) && item.restockTargetQuantity !== null && item.restockTargetQuantity > item.quantity;
+
 export const getLastInventoryUpdate = (items: InventoryItem[]) => {
   if (items.length === 0) return null;
 

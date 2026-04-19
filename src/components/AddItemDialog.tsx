@@ -27,19 +27,44 @@ interface Props {
   onAdded: () => void;
   groupId?: string;
   trigger?: ReactNode;
+  initialValues?: {
+    name?: string;
+    category?: string;
+    quantity?: number;
+    unit?: string;
+    notes?: string | null;
+    lowStockThreshold?: number | null;
+    restockTargetQuantity?: number | null;
+  };
 }
 
-export function AddItemDialog({ onAdded, groupId, trigger }: Props) {
+export function AddItemDialog({ onAdded, groupId, trigger, initialValues }: Props) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [category, setCategory] = useState("");
-  const [quantity, setQuantity] = useState("1");
-  const [unit, setUnit] = useState("pcs");
+  const [name, setName] = useState(initialValues?.name ?? "");
+  const [category, setCategory] = useState(initialValues?.category ?? "");
+  const [quantity, setQuantity] = useState(String(initialValues?.quantity ?? 1));
+  const [unit, setUnit] = useState(initialValues?.unit ?? "pcs");
   const [date, setDate] = useState<Date>();
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(initialValues?.notes ?? "");
+  const [lowStockThreshold, setLowStockThreshold] = useState(
+    initialValues?.lowStockThreshold === undefined || initialValues.lowStockThreshold === null
+      ? ""
+      : String(initialValues.lowStockThreshold),
+  );
+  const [restockTargetQuantity, setRestockTargetQuantity] = useState(
+    initialValues?.restockTargetQuantity === undefined || initialValues.restockTargetQuantity === null
+      ? ""
+      : String(initialValues.restockTargetQuantity),
+  );
+
+  const parseOptionalQuantity = (value: string) => {
+    if (value.trim() === "") return null;
+    return Number(value);
+  };
+
   const createItemMutation = useMutation({
     mutationFn: () =>
       api.createInventoryItem({
@@ -48,6 +73,8 @@ export function AddItemDialog({ onAdded, groupId, trigger }: Props) {
         category,
         quantity: Number(quantity),
         unit,
+        lowStockThreshold: parseOptionalQuantity(lowStockThreshold),
+        restockTargetQuantity: parseOptionalQuantity(restockTargetQuantity),
         expirationDate: date!.toISOString(),
         notes: notes || undefined,
       }),
@@ -71,24 +98,68 @@ export function AddItemDialog({ onAdded, groupId, trigger }: Props) {
   });
 
   const reset = () => {
-    setName("");
-    setCategory("");
-    setQuantity("1");
-    setUnit("pcs");
+    setName(initialValues?.name ?? "");
+    setCategory(initialValues?.category ?? "");
+    setQuantity(String(initialValues?.quantity ?? 1));
+    setUnit(initialValues?.unit ?? "pcs");
     setDate(undefined);
     setDatePickerOpen(false);
-    setNotes("");
+    setNotes(initialValues?.notes ?? "");
+    setLowStockThreshold(
+      initialValues?.lowStockThreshold === undefined || initialValues.lowStockThreshold === null
+        ? ""
+        : String(initialValues.lowStockThreshold),
+    );
+    setRestockTargetQuantity(
+      initialValues?.restockTargetQuantity === undefined || initialValues.restockTargetQuantity === null
+        ? ""
+        : String(initialValues.restockTargetQuantity),
+    );
   };
 
   const handleSubmit = () => {
-    if (!name || !category || !date || !groupId) return;
+    const parsedQuantity = Number(quantity);
+    const parsedLowThreshold = parseOptionalQuantity(lowStockThreshold);
+    const parsedRestockTarget = parseOptionalQuantity(restockTargetQuantity);
+
+    if (
+      !name ||
+      !category ||
+      !date ||
+      !groupId ||
+      Number.isNaN(parsedQuantity) ||
+      parsedQuantity < 0 ||
+      (parsedLowThreshold !== null && (Number.isNaN(parsedLowThreshold) || parsedLowThreshold < 0)) ||
+      (parsedRestockTarget !== null && (Number.isNaN(parsedRestockTarget) || parsedRestockTarget < 0)) ||
+      (parsedLowThreshold !== null && parsedRestockTarget !== null && parsedRestockTarget <= parsedLowThreshold)
+    ) {
+      return;
+    }
+
     createItemMutation.mutate();
   };
+
+  const isInvalidRestockTarget =
+    lowStockThreshold.trim() !== "" &&
+    restockTargetQuantity.trim() !== "" &&
+    Number(restockTargetQuantity) <= Number(lowStockThreshold);
+
+  const isSubmitDisabled =
+    !name ||
+    !category ||
+    !date ||
+    !groupId ||
+    Number(quantity) < 0 ||
+    isInvalidRestockTarget ||
+    createItemMutation.isPending;
 
   return (
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
+        if (nextOpen) {
+          reset();
+        }
         setOpen(nextOpen);
         if (!nextOpen) {
           setDatePickerOpen(false);
@@ -158,7 +229,7 @@ export function AddItemDialog({ onAdded, groupId, trigger }: Props) {
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label htmlFor="qty">Jumlah</Label>
-              <Input id="qty" type="number" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+              <Input id="qty" type="number" min="0" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
             </div>
             <div className="grid gap-2">
               <Label>Satuan</Label>
@@ -173,6 +244,37 @@ export function AddItemDialog({ onAdded, groupId, trigger }: Props) {
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="low-stock-threshold">Batas stok rendah</Label>
+              <Input
+                id="low-stock-threshold"
+                type="number"
+                min="0"
+                placeholder="Opsional"
+                value={lowStockThreshold}
+                onChange={(e) => setLowStockThreshold(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="restock-target">Target restock</Label>
+              <Input
+                id="restock-target"
+                type="number"
+                min="0"
+                placeholder="Opsional"
+                value={restockTargetQuantity}
+                onChange={(e) => setRestockTargetQuantity(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {isInvalidRestockTarget && (
+            <p className="text-xs font-medium text-destructive">
+              Target restock harus lebih besar dari batas stok rendah.
+            </p>
+          )}
+
           <div className="grid gap-2">
             <Label htmlFor="notes">Catatan (opsional)</Label>
             <Textarea id="notes" placeholder="Catatan tambahan..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
@@ -180,7 +282,7 @@ export function AddItemDialog({ onAdded, groupId, trigger }: Props) {
 
           <Button
             onClick={handleSubmit}
-            disabled={!name || !category || !date || !groupId || createItemMutation.isPending}
+            disabled={isSubmitDisabled}
             className="w-full font-bold text-base mt-2"
           >
             Simpan

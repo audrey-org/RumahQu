@@ -50,6 +50,7 @@ export async function resetDatabaseForTests() {
       password_reset_tokens,
       group_invites,
       group_members,
+      inventory_adjustments,
       shopping_list_items,
       inventory_items,
       groups,

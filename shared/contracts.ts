@@ -90,6 +90,8 @@ export interface InventoryItem {
   category: string;
   quantity: number;
   unit: string;
+  lowStockThreshold: number | null;
+  restockTargetQuantity: number | null;
   expirationDate: string;
   notes: string | null;
   createdAt: string;
@@ -106,6 +108,8 @@ export interface CreateInventoryItemInput {
   category: string;
   quantity: number;
   unit: string;
+  lowStockThreshold?: number | null;
+  restockTargetQuantity?: number | null;
   expirationDate: string;
   notes?: string;
 }
@@ -115,8 +119,43 @@ export interface UpdateInventoryItemInput {
   category?: string;
   quantity?: number;
   unit?: string;
+  lowStockThreshold?: number | null;
+  restockTargetQuantity?: number | null;
   expirationDate?: string;
   notes?: string | null;
+}
+
+export type InventoryAdjustmentType = "add" | "use" | "set";
+
+export interface InventoryAdjustment {
+  id: string;
+  itemId: string;
+  groupId: string;
+  adjustedBy: string | null;
+  adjustedByName: string | null;
+  type: InventoryAdjustmentType;
+  delta: number;
+  quantityBefore: number;
+  quantityAfter: number;
+  reason: string | null;
+  createdAt: string;
+}
+
+export interface AdjustInventoryStockInput {
+  type: InventoryAdjustmentType;
+  quantity: number;
+  reason?: string;
+}
+
+export interface InventoryAdjustmentsResponse {
+  adjustments: InventoryAdjustment[];
+}
+
+export type RestockSuggestionStatus = "added" | "already-in-shopping-list";
+
+export interface RestockSuggestionResponse {
+  status: RestockSuggestionStatus;
+  shoppingListItem: ShoppingListItem | null;
 }
 
 export interface ShoppingListItem {

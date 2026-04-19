@@ -393,6 +393,139 @@ describeIfDatabase("RumahQu API", () => {
     expect(emptyShoppingListResponse.body.items).toHaveLength(0);
   });
 
+  it("supports stock adjustments, low-stock restock suggestions, and duplicate restock skips", async () => {
+    const alice = request.agent(app);
+    const stranger = request.agent(app);
+
+    await registerAndVerifyUser(alice, {
+      email: "alice-stock-flow@example.com",
+      password: "hunter22",
+      fullName: "Alice Stock",
+    });
+    await registerAndVerifyUser(stranger, {
+      email: "stranger-stock-flow@example.com",
+      password: "hunter22",
+      fullName: "Stock Stranger",
+    });
+
+    const groupsResponse = await alice.get("/api/groups");
+    const groupId = groupsResponse.body.groups[0].id as string;
+    const csrfToken = await bootstrapCsrf(alice);
+
+    const invalidSettingsResponse = await alice.post("/api/inventory").set("x-csrf-token", csrfToken).send({
+      groupId,
+      name: "Telur ayam",
+      category: "Makanan",
+      quantity: 0,
+      unit: "pcs",
+      lowStockThreshold: 4,
+      restockTargetQuantity: 4,
+      expirationDate: isoDateFromToday(14),
+    });
+
+    expect(invalidSettingsResponse.status).toBe(400);
+
+    const createResponse = await alice.post("/api/inventory").set("x-csrf-token", csrfToken).send({
+      groupId,
+      name: "Telur ayam",
+      category: "Makanan",
+      quantity: 0,
+      unit: "pcs",
+      lowStockThreshold: 4,
+      restockTargetQuantity: 12,
+      expirationDate: isoDateFromToday(14),
+    });
+
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.body).toMatchObject({
+      quantity: 0,
+      lowStockThreshold: 4,
+      restockTargetQuantity: 12,
+    });
+
+    const itemId = createResponse.body.id as string;
+
+    const addResponse = await alice
+      .post(`/api/inventory/${itemId}/adjustments`)
+      .set("x-csrf-token", csrfToken)
+      .send({ type: "add", quantity: 6, reason: "Belanja mingguan" });
+
+    expect(addResponse.status).toBe(200);
+    expect(addResponse.body.quantity).toBe(6);
+
+    const useResponse = await alice
+      .post(`/api/inventory/${itemId}/adjustments`)
+      .set("x-csrf-token", csrfToken)
+      .send({ type: "use", quantity: 2, reason: "Sarapan" });
+
+    expect(useResponse.status).toBe(200);
+    expect(useResponse.body.quantity).toBe(4);
+
+    const setResponse = await alice
+      .post(`/api/inventory/${itemId}/adjustments`)
+      .set("x-csrf-token", csrfToken)
+      .send({ type: "set", quantity: 1 });
+
+    expect(setResponse.status).toBe(200);
+    expect(setResponse.body.quantity).toBe(1);
+
+    const negativeResponse = await alice
+      .post(`/api/inventory/${itemId}/adjustments`)
+      .set("x-csrf-token", csrfToken)
+      .send({ type: "use", quantity: 3 });
+
+    expect(negativeResponse.status).toBe(400);
+
+    const historyResponse = await alice.get(`/api/inventory/${itemId}/adjustments`);
+    expect(historyResponse.status).toBe(200);
+    expect(historyResponse.body.adjustments).toHaveLength(3);
+    expect(historyResponse.body.adjustments[0]).toMatchObject({
+      type: "set",
+      quantityBefore: 4,
+      quantityAfter: 1,
+      adjustedByName: "Alice Stock",
+    });
+
+    const restockResponse = await alice
+      .post(`/api/inventory/${itemId}/restock-suggestion`)
+      .set("x-csrf-token", csrfToken)
+      .send({});
+
+    expect(restockResponse.status).toBe(201);
+    expect(restockResponse.body).toMatchObject({
+      status: "added",
+      shoppingListItem: {
+        name: "Telur ayam",
+        quantity: 11,
+        unit: "pcs",
+        isPurchased: false,
+      },
+    });
+
+    const duplicateRestockResponse = await alice
+      .post(`/api/inventory/${itemId}/restock-suggestion`)
+      .set("x-csrf-token", csrfToken)
+      .send({});
+
+    expect(duplicateRestockResponse.status).toBe(200);
+    expect(duplicateRestockResponse.body.status).toBe("already-in-shopping-list");
+
+    const strangerCsrf = await bootstrapCsrf(stranger);
+    const strangerAdjustResponse = await stranger
+      .post(`/api/inventory/${itemId}/adjustments`)
+      .set("x-csrf-token", strangerCsrf)
+      .send({ type: "add", quantity: 1 });
+    const strangerHistoryResponse = await stranger.get(`/api/inventory/${itemId}/adjustments`);
+    const strangerRestockResponse = await stranger
+      .post(`/api/inventory/${itemId}/restock-suggestion`)
+      .set("x-csrf-token", strangerCsrf)
+      .send({});
+
+    expect(strangerAdjustResponse.status).toBe(403);
+    expect(strangerHistoryResponse.status).toBe(403);
+    expect(strangerRestockResponse.status).toBe(403);
+  });
+
   it("builds deterministic meal recommendations and can add missing ingredients to shopping list", async () => {
     const alice = request.agent(app);
     const stranger = request.agent(app);

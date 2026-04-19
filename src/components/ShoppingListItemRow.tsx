@@ -1,11 +1,12 @@
 import { format, parseISO } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ShoppingCart, Trash2 } from "lucide-react";
+import { PackagePlus, ShoppingCart, Trash2 } from "lucide-react";
 import { api, getErrorMessage } from "@/lib/api/client";
 import { queryKeys } from "@/lib/api/query-keys";
 import type { ShoppingListItem } from "@/lib/contracts";
 import { cn } from "@/lib/utils";
+import { AddItemDialog } from "@/components/AddItemDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -28,6 +29,21 @@ export function ShoppingListItemRow({ item, groupId }: Props) {
     await queryClient.invalidateQueries({
       queryKey: queryKeys.shoppingList(groupId),
     });
+  };
+
+  const refreshInventory = async () => {
+    if (!groupId) {
+      return;
+    }
+
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.inventory(groupId),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.mealRecommendations(groupId),
+      }),
+    ]);
   };
 
   const toggleMutation = useMutation({
@@ -108,6 +124,25 @@ export function ShoppingListItemRow({ item, groupId }: Props) {
       </div>
       <div className="flex items-center gap-1">
         {!item.isPurchased && <ShoppingCart className="h-4 w-4 text-primary" aria-hidden="true" />}
+        {item.isPurchased && (
+          <AddItemDialog
+            groupId={groupId}
+            onAdded={() => void refreshInventory()}
+            initialValues={{
+              name: item.name,
+              category: item.category,
+              quantity: item.quantity,
+              unit: item.unit,
+              notes: item.notes,
+            }}
+            trigger={
+              <Button type="button" variant="outline" size="sm" className="gap-2">
+                <PackagePlus className="h-4 w-4" />
+                Tambah ke Inventory
+              </Button>
+            }
+          />
+        )}
         <Button
           type="button"
           variant="ghost"

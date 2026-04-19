@@ -2,6 +2,7 @@ import type {
   AddMissingIngredientsResponse,
   AdminStatsResponse,
   AdminUsersResponse,
+  AdjustInventoryStockInput,
   ApiError,
   AuthResponse,
   CreateShoppingListItemInput,
@@ -9,12 +10,14 @@ import type {
   GroupSummary,
   GroupsResponse,
   InventoryItem,
+  InventoryAdjustmentsResponse,
   InventoryResponse,
   MealRecommendationsResponse,
   PasswordResetEmailResponse,
   PasswordResetResponse,
   PendingInvite,
   RegisterResponse,
+  RestockSuggestionResponse,
   SessionResponse,
   ShoppingListItem,
   ShoppingListResponse,
@@ -246,6 +249,8 @@ export const api = {
     category: string;
     quantity: number;
     unit: string;
+    lowStockThreshold?: number | null;
+    restockTargetQuantity?: number | null;
     expirationDate: string;
     notes?: string;
   }) {
@@ -273,6 +278,20 @@ export const api = {
     return request<InventoryItem>(`/api/inventory/${itemId}`, {
       method: "PATCH",
       body: input,
+    });
+  },
+  getInventoryAdjustments(itemId: string) {
+    return request<InventoryAdjustmentsResponse>(`/api/inventory/${itemId}/adjustments`);
+  },
+  adjustInventoryStock(itemId: string, input: AdjustInventoryStockInput) {
+    return request<InventoryItem>(`/api/inventory/${itemId}/adjustments`, {
+      method: "POST",
+      body: input,
+    });
+  },
+  createRestockSuggestion(itemId: string) {
+    return request<RestockSuggestionResponse>(`/api/inventory/${itemId}/restock-suggestion`, {
+      method: "POST",
     });
   },
   updateShoppingListItem(itemId: string, input: UpdateShoppingListItemInput) {

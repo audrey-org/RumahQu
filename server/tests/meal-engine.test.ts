@@ -19,6 +19,8 @@ function inventoryItem(overrides: Partial<InventoryItem> & Pick<InventoryItem, "
     category: overrides.category ?? "Makanan",
     quantity: overrides.quantity ?? 1,
     unit: overrides.unit ?? "pcs",
+    lowStockThreshold: overrides.lowStockThreshold ?? null,
+    restockTargetQuantity: overrides.restockTargetQuantity ?? null,
     expirationDate: overrides.expirationDate ?? isoDateFromToday(30),
     notes: overrides.notes ?? null,
     createdAt: overrides.createdAt ?? new Date().toISOString(),
