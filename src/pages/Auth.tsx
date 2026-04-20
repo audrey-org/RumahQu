@@ -13,7 +13,7 @@ import { usePageMeta } from "@/hooks/usePageMeta";
 import { APP_NAME } from "@/lib/brand";
 
 const Auth = () => {
-  const { signIn, signUp, resendVerificationEmail, requestPasswordReset, resetPassword } = useAuth();
+  const { signIn, signInWithGoogle, signUp, resendVerificationEmail, requestPasswordReset, resetPassword } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
@@ -46,6 +46,7 @@ const Auth = () => {
   const mode = searchParams.get("mode");
   const tab = searchParams.get("tab");
   const verificationStatus = searchParams.get("verification");
+  const oauthStatus = searchParams.get("oauth");
   const resetStatus = searchParams.get("reset");
   const resetToken = searchParams.get("token")?.trim() ?? "";
   const isForgotPasswordMode = mode === "forgot-password";
@@ -60,6 +61,17 @@ const Auth = () => {
   }, [isForgotPasswordMode, isResetPasswordMode, tab]);
 
   const verificationAlert = useMemo(() => {
+    if (oauthStatus === "failed" || oauthStatus === "invalid") {
+      return {
+        title: "Login Google gagal",
+        description:
+          oauthStatus === "invalid"
+            ? "Sesi login Google tidak valid atau sudah kedaluwarsa. Silakan coba lagi."
+            : "Kami belum bisa menyelesaikan login Google. Silakan coba lagi.",
+        variant: "destructive" as const,
+      };
+    }
+
     if (resetStatus === "success") {
       return {
         title: "Password berhasil direset",
@@ -101,7 +113,38 @@ const Auth = () => {
     }
 
     return null;
-  }, [resetStatus, verificationStatus]);
+  }, [oauthStatus, resetStatus, verificationStatus]);
+
+  const googleButtonLabel = activeTab === "register" ? "Daftar dengan Google" : "Masuk dengan Google";
+
+  const googleAuthButton = (
+    <Button
+      type="button"
+      variant="outline"
+      className="w-full gap-3 rounded-full border-border/80 bg-background text-base font-bold"
+      onClick={signInWithGoogle}
+    >
+      <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24">
+        <path
+          fill="#4285F4"
+          d="M21.805 10.023h-9.57v3.954h5.506c-.237 1.274-.958 2.354-2.043 3.08v2.56h3.307c1.936-1.782 3.052-4.406 3.052-7.517 0-.715-.064-1.404-.252-2.077z"
+        />
+        <path
+          fill="#34A853"
+          d="M12.235 22c2.763 0 5.083-.915 6.778-2.482l-3.307-2.56c-.918.616-2.092.98-3.471.98-2.668 0-4.927-1.8-5.734-4.22H3.083v2.64C4.768 19.704 8.232 22 12.235 22z"
+        />
+        <path
+          fill="#FBBC05"
+          d="M6.501 13.718a5.994 5.994 0 0 1 0-3.832v-2.64H3.083a10.012 10.012 0 0 0 0 9.112l3.418-2.64z"
+        />
+        <path
+          fill="#EA4335"
+          d="M12.235 5.866c1.503 0 2.853.516 3.915 1.529l2.934-2.934C17.313 2.812 14.998 2 12.235 2 8.232 2 4.768 4.296 3.083 7.246l3.418 2.64c.807-2.42 3.066-4.02 5.734-4.02z"
+        />
+      </svg>
+      {googleButtonLabel}
+    </Button>
+  );
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -128,6 +171,7 @@ const Auth = () => {
     nextParams.set("tab", nextTab);
     nextParams.delete("mode");
     nextParams.delete("verification");
+    nextParams.delete("oauth");
     nextParams.delete("reset");
     nextParams.delete("token");
     setSearchParams(nextParams, { replace: true });
@@ -389,6 +433,17 @@ const Auth = () => {
                   </TabsList>
 
                   <TabsContent value="login">
+                    <div className="mt-4 space-y-4">
+                      {googleAuthButton}
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                          <span className="w-full border-t" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                          <span className="bg-card px-2 text-muted-foreground">atau pakai email</span>
+                        </div>
+                      </div>
+                    </div>
                     <form onSubmit={handleLogin} className="mt-4 space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="login-email">Email</Label>
@@ -432,6 +487,17 @@ const Auth = () => {
                   </TabsContent>
 
                   <TabsContent value="register">
+                    <div className="mt-4 space-y-4">
+                      {googleAuthButton}
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                          <span className="w-full border-t" />
+                        </div>
+                        <div className="relative flex justify-center text-xs uppercase">
+                          <span className="bg-card px-2 text-muted-foreground">atau daftar manual</span>
+                        </div>
+                      </div>
+                    </div>
                     <form onSubmit={handleRegister} className="mt-4 space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="reg-name">Nama Lengkap</Label>

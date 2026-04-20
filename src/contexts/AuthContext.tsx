@@ -15,6 +15,7 @@ interface AuthContextType {
   user: SessionUser | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<AuthActionResult>;
+  signInWithGoogle: () => void;
   signUp: (email: string, password: string, fullName: string) => Promise<AuthActionResult>;
   resendVerificationEmail: (email: string) => Promise<AuthActionResult>;
   requestPasswordReset: (email: string) => Promise<AuthActionResult>;
@@ -50,6 +51,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: error instanceof ApiClientError && typeof error.details?.email === "string" ? error.details.email : undefined,
       };
     }
+  };
+
+  const signInWithGoogle = () => {
+    window.location.assign(api.getGoogleAuthUrl());
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
@@ -129,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user: sessionQuery.data?.user ?? null,
         loading: sessionQuery.isLoading,
         signIn,
+        signInWithGoogle,
         signUp,
         resendVerificationEmail,
         requestPasswordReset,

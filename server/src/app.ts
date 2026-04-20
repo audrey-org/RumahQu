@@ -78,8 +78,33 @@ type UserRow = {
   avatar_url: string | null;
   created_at: Date;
   role: SessionUser["role"];
-  password_hash: string;
+  password_hash: string | null;
   email_verified_at: Date | null;
+};
+
+type GoogleTokenResponse = {
+  id_token?: string;
+  error?: string;
+  error_description?: string;
+};
+
+type GoogleTokenInfoResponse = {
+  aud?: string;
+  sub?: string;
+  email?: string;
+  email_verified?: string | boolean;
+  name?: string;
+  picture?: string;
+  exp?: string;
+  error?: string;
+  error_description?: string;
+};
+
+type GoogleProfile = {
+  sub: string;
+  email: string;
+  fullName: string;
+  avatarUrl: string | null;
 };
 
 type AdminUserRow = {
@@ -204,6 +229,7 @@ const frontendDistDirectory =
   frontendDistCandidates[0];
 const frontendIndexFile = path.join(frontendDistDirectory, "index.html");
 const noIndexSpaPaths = new Set(["/auth", "/app", "/inventory", "/meal-recommendations", "/groups", "/profile", "/admin"]);
+const googleOAuthStateCookieName = "rumahqu_google_oauth_state";
 
 const registerSchema = z.object({
   email: z.string().trim().email(),
@@ -357,6 +383,58 @@ function buildPasswordResetUrl(token: string) {
   url.searchParams.set("mode", "reset-password");
   url.searchParams.set("token", token);
   return url.toString();
+}
+
+function buildGoogleRedirectUri(req: Request) {
+  return new URL("/api/auth/google/callback", buildRequestOrigin(req)).toString();
+}
+
+function requireGoogleOAuthConfig() {
+  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+    throw new AppError(500, "GOOGLE_AUTH_NOT_CONFIGURED", "Google login belum dikonfigurasi");
+  }
+
+  return {
+    clientId: env.GOOGLE_CLIENT_ID,
+    clientSecret: env.GOOGLE_CLIENT_SECRET,
+  };
+}
+
+function buildGoogleOAuthUrl(req: Request, state: string) {
+  const { clientId } = requireGoogleOAuthConfig();
+  const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("redirect_uri", buildGoogleRedirectUri(req));
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("scope", "openid email profile");
+  url.searchParams.set("state", state);
+  url.searchParams.set("prompt", "select_account");
+  return url.toString();
+}
+
+function buildAuthRedirectUrl(params: Record<string, string>) {
+  const url = new URL("/auth", env.primaryAppOrigin);
+  Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+  return url.toString();
+}
+
+function setGoogleOAuthStateCookie(res: Response, state: string) {
+  res.cookie(googleOAuthStateCookieName, state, {
+    httpOnly: true,
+    maxAge: 10 * 60 * 1000,
+    sameSite: "lax",
+    secure: env.COOKIE_SECURE,
+    path: "/api/auth/google",
+  });
+}
+
+function clearGoogleOAuthStateCookie(res: Response) {
+  res.clearCookie(googleOAuthStateCookieName, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: env.COOKIE_SECURE,
+    path: "/api/auth/google",
+  });
 }
 
 function shouldNoIndexSpaPath(requestPath: string) {
@@ -770,6 +848,147 @@ async function buildAuthResponse(user: SessionUser, csrfToken: string): Promise<
   };
 }
 
+async function exchangeGoogleCode(req: Request, code: string) {
+  const { clientId, clientSecret } = requireGoogleOAuthConfig();
+  const body = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    code,
+    grant_type: "authorization_code",
+    redirect_uri: buildGoogleRedirectUri(req),
+  });
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body,
+  });
+  const payload = (await response.json()) as GoogleTokenResponse;
+
+  if (!response.ok || !payload.id_token) {
+    throw new AppError(502, "GOOGLE_TOKEN_EXCHANGE_FAILED", "Gagal memproses login Google", {
+      providerError: payload.error ?? payload.error_description,
+    });
+  }
+
+  return payload.id_token;
+}
+
+async function verifyGoogleIdToken(idToken: string): Promise<GoogleProfile> {
+  const { clientId } = requireGoogleOAuthConfig();
+  const url = new URL("https://oauth2.googleapis.com/tokeninfo");
+  url.searchParams.set("id_token", idToken);
+
+  const response = await fetch(url);
+  const payload = (await response.json()) as GoogleTokenInfoResponse;
+
+  if (!response.ok) {
+    throw new AppError(502, "GOOGLE_TOKEN_VERIFY_FAILED", "Gagal memverifikasi akun Google", {
+      providerError: payload.error ?? payload.error_description,
+    });
+  }
+
+  const emailVerified = payload.email_verified === true || payload.email_verified === "true";
+  const expiresAt = payload.exp ? Number(payload.exp) * 1000 : 0;
+
+  if (
+    payload.aud !== clientId ||
+    !payload.sub ||
+    !payload.email ||
+    !emailVerified ||
+    !expiresAt ||
+    expiresAt <= Date.now()
+  ) {
+    throw new AppError(401, "GOOGLE_TOKEN_INVALID", "Akun Google tidak valid atau email belum diverifikasi");
+  }
+
+  return {
+    sub: payload.sub,
+    email: payload.email.trim(),
+    fullName: payload.name?.trim() || payload.email.split("@")[0],
+    avatarUrl: payload.picture?.trim() || null,
+  };
+}
+
+async function signInWithGoogleProfile(profile: GoogleProfile) {
+  return withTransaction(async (client) => {
+    const emailNormalized = normalizeEmail(profile.email);
+    const existingByGoogleSub = await client.query<UserRow>(
+      `
+        SELECT id, email, full_name, avatar_url, created_at, role, password_hash, email_verified_at
+        FROM users
+        WHERE google_sub = $1
+      `,
+      [profile.sub],
+    );
+
+    let userRow: UserRow;
+
+    if (existingByGoogleSub.rowCount) {
+      const updated = await client.query<UserRow>(
+        `
+          UPDATE users
+          SET email = $2,
+              email_normalized = $3,
+              full_name = COALESCE(NULLIF(full_name, ''), $4),
+              avatar_url = COALESCE(avatar_url, $5),
+              email_verified_at = COALESCE(email_verified_at, now())
+          WHERE id = $1
+          RETURNING id, email, full_name, avatar_url, created_at, role, password_hash, email_verified_at
+        `,
+        [existingByGoogleSub.rows[0].id, profile.email, emailNormalized, profile.fullName, profile.avatarUrl],
+      );
+      userRow = updated.rows[0];
+    } else {
+      const existingByEmail = await client.query<UserRow>(
+        `
+          SELECT id, email, full_name, avatar_url, created_at, role, password_hash, email_verified_at
+          FROM users
+          WHERE email_normalized = $1
+        `,
+        [emailNormalized],
+      );
+
+      if (existingByEmail.rowCount) {
+        const updated = await client.query<UserRow>(
+          `
+            UPDATE users
+            SET google_sub = $2,
+                email = $3,
+                full_name = COALESCE(NULLIF(full_name, ''), $4),
+                avatar_url = COALESCE(avatar_url, $5),
+                email_verified_at = COALESCE(email_verified_at, now())
+            WHERE id = $1
+            RETURNING id, email, full_name, avatar_url, created_at, role, password_hash, email_verified_at
+          `,
+          [existingByEmail.rows[0].id, profile.sub, profile.email, profile.fullName, profile.avatarUrl],
+        );
+        userRow = updated.rows[0];
+      } else {
+        const inserted = await client.query<UserRow>(
+          `
+            INSERT INTO users (email, email_normalized, full_name, avatar_url, email_verified_at, google_sub)
+            VALUES ($1, $2, $3, $4, now(), $5)
+            RETURNING id, email, full_name, avatar_url, created_at, role, password_hash, email_verified_at
+          `,
+          [profile.email, emailNormalized, profile.fullName, profile.avatarUrl, profile.sub],
+        );
+        userRow = inserted.rows[0];
+      }
+    }
+
+    const user = toSessionUser(userRow);
+    await ensurePersonalGroup(client, user);
+    const sessionTokens = await createSession(client, user);
+    return {
+      user,
+      sessionTokens,
+    };
+  });
+}
+
 async function createEmailVerificationToken(client: PoolClient, userId: string) {
   const rawToken = createRandomToken(48);
   const tokenHash = hashToken(rawToken);
@@ -1066,6 +1285,43 @@ export function createApp() {
     );
   }
 
+  app.get(
+    "/api/auth/google/start",
+    authRateLimiter,
+    asyncHandler(async (req, res) => {
+      const state = createRandomToken(32);
+      setGoogleOAuthStateCookie(res, state);
+      res.redirect(buildGoogleOAuthUrl(req, state));
+    }),
+  );
+
+  app.get(
+    "/api/auth/google/callback",
+    authRateLimiter,
+    asyncHandler(async (req, res) => {
+      const code = typeof req.query.code === "string" ? req.query.code : "";
+      const state = typeof req.query.state === "string" ? req.query.state : "";
+      const expectedState = parseCookies(req.header("cookie"))[googleOAuthStateCookieName];
+      clearGoogleOAuthStateCookie(res);
+
+      if (!code || !state || !expectedState || state !== expectedState) {
+        res.redirect(buildAuthRedirectUrl({ oauth: "invalid", tab: "login" }));
+        return;
+      }
+
+      try {
+        const idToken = await exchangeGoogleCode(req, code);
+        const profile = await verifyGoogleIdToken(idToken);
+        const result = await signInWithGoogleProfile(profile);
+        setSessionCookies(res, result.sessionTokens.rawToken, result.sessionTokens.csrfToken);
+        res.redirect(new URL("/app", env.primaryAppOrigin).toString());
+      } catch (error) {
+        logError(error);
+        res.redirect(buildAuthRedirectUrl({ oauth: "failed", tab: "login" }));
+      }
+    }),
+  );
+
   app.post(
     "/api/auth/register",
     authRateLimiter,
@@ -1327,6 +1583,10 @@ export function createApp() {
         }
 
         const userRow = userResult.rows[0];
+        if (!userRow.password_hash) {
+          throw new AppError(401, "INVALID_CREDENTIALS", "Email atau password salah");
+        }
+
         const passwordMatches = await verifyPassword(userRow.password_hash, input.password);
 
         if (!passwordMatches) {

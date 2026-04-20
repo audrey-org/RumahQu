@@ -145,6 +145,9 @@ export function getErrorMessage(error: unknown) {
 }
 
 export const api = {
+  getGoogleAuthUrl() {
+    return buildUrl("/api/auth/google/start");
+  },
   getSession() {
     return request<SessionResponse>("/api/auth/me");
   },

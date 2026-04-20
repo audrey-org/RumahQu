@@ -42,6 +42,8 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((value) => value?.trim() ?? "RumahQu <no-reply@rumahqu.local>"),
+  GOOGLE_CLIENT_ID: z.string().optional().transform((value) => value?.trim() ?? ""),
+  GOOGLE_CLIENT_SECRET: z.string().optional().transform((value) => value?.trim() ?? ""),
 });
 
 const parsedEnv = envSchema.parse(process.env);
